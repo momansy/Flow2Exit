@@ -1,6 +1,3 @@
-const { google } = require('googleapis');
-const { Readable } = require('stream');
-
 function json(statusCode, body){
   return { statusCode, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify(body) };
 }
@@ -11,23 +8,12 @@ function safeName(value){
   return String(value || '').replace(/[^a-zA-Z0-9._ -]/g, '_').slice(0, 120) || 'ecg-file';
 }
 function assertEnv(){
-  if(!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || !process.env.GOOGLE_PRIVATE_KEY){
-    throw new Error('Missing Google service account environment variables.');
+  if(!process.env.ECG_UPLOAD_WEBAPP_URL){
+    throw new Error('Missing ECG_UPLOAD_WEBAPP_URL. Deploy the Google Apps Script ECG uploader as a web app and add its URL in Netlify.');
   }
-  if(!process.env.GOOGLE_DRIVE_FOLDER_ID){
-    throw new Error('Missing GOOGLE_DRIVE_FOLDER_ID. Create a Google Drive folder, share it with the service account, and add its folder ID in Netlify.');
+  if(!process.env.ECG_UPLOAD_TOKEN){
+    throw new Error('Missing ECG_UPLOAD_TOKEN. Add the same secret token used in the Google Apps Script uploader.');
   }
-}
-async function driveClient(){
-  assertEnv();
-  const privateKey = (process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n');
-  const auth = new google.auth.JWT(
-    process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-    null,
-    privateKey,
-    ['https://www.googleapis.com/auth/drive.file']
-  );
-  return google.drive({ version: 'v3', auth });
 }
 
 exports.handler = async (event) => {
@@ -35,6 +21,8 @@ exports.handler = async (event) => {
   if(event.httpMethod !== 'POST') return json(405, { success:false, error:'Method not allowed' });
 
   try{
+    assertEnv();
+
     const body = JSON.parse(event.body || '{}');
     const { fileName, mimeType, dataUrl, summary_id, patient_name, mrn } = body;
     if(!fileName || !dataUrl) return json(400, { success:false, error:'Missing fileName or dataUrl' });
@@ -48,38 +36,53 @@ exports.handler = async (event) => {
     }
 
     const buffer = Buffer.from(match[2], 'base64');
-    const maxBytes = 8 * 1024 * 1024;
-    if(buffer.length > maxBytes) return json(400, { success:false, error:'File is too large. Maximum size is 8 MB.' });
+    const maxBytes = 4 * 1024 * 1024;
+    if(buffer.length > maxBytes) return json(400, { success:false, error:'File is too large. Maximum size is 4 MB.' });
 
-    const drive = await driveClient();
     const prefix = [mrn || 'no-mrn', patient_name || 'patient', summary_id || Date.now()].map(safeName).join('_');
     const finalName = `ECG_${prefix}_${Date.now()}_${safeName(fileName)}`;
 
-    const created = await drive.files.create({
-      requestBody: {
-        name: finalName,
-        parents: [process.env.GOOGLE_DRIVE_FOLDER_ID],
-        description: `Flow2Exit ECG attachment. Patient: ${patient_name || ''}. MRN: ${mrn || ''}. Summary: ${summary_id || ''}.`
-      },
-      media: {
-        mimeType: type,
-        body: Readable.from(buffer)
-      },
-      fields: 'id,name,mimeType,size,webViewLink,webContentLink,createdTime',
-      supportsAllDrives: true
+    const payload = {
+      token: process.env.ECG_UPLOAD_TOKEN,
+      fileName: finalName,
+      originalFileName: fileName,
+      mimeType: type,
+      base64: match[2],
+      summary_id: summary_id || '',
+      patient_name: patient_name || '',
+      mrn: mrn || ''
+    };
+
+    const res = await fetch(process.env.ECG_UPLOAD_WEBAPP_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload),
+      redirect: 'follow'
     });
 
-    const f = created.data;
+    const text = await res.text();
+    let out;
+    try { out = JSON.parse(text); }
+    catch(parseErr){
+      return json(502, { success:false, error:'Apps Script did not return JSON. Check the web app URL and deployment access setting.', raw:text.slice(0, 300) });
+    }
+
+    if(!out.success){
+      return json(500, { success:false, error:out.error || 'Apps Script upload failed' });
+    }
+
     return json(200, {
       success:true,
       file:{
-        drive_file_id: f.id,
-        name: f.name,
-        mimeType: f.mimeType,
-        size: f.size,
-        webViewLink: f.webViewLink,
-        webContentLink: f.webContentLink,
-        uploaded_at: f.createdTime
+        drive_file_id: out.fileId || '',
+        name: out.fileName || finalName,
+        originalName: fileName,
+        mimeType: type,
+        size: buffer.length,
+        webViewLink: out.fileUrl || out.url || '',
+        webContentLink: out.fileUrl || out.url || '',
+        uploaded_at: new Date().toISOString(),
+        storage: 'Google Drive via Apps Script'
       }
     });
   }catch(err){

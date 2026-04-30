@@ -44,7 +44,7 @@ async function addMedicineToSheets(medicine){
   catch(e){ console.warn("Google Sheets medicine add unavailable; stored locally only.", e.message); return { success:false, error:e.message }; }
 }
 
-async function uploadECGToDrive(file, summary){
+async function uploadECGFile(file, summary){
   const dataUrl = await fileToDataUrl(file);
   return await apiPost("/upload-ecg", {
     fileName: file.name,
@@ -73,10 +73,10 @@ async function handleECGFiles(files){
   let s = collectSummary();
   if(!s.summary_id) s.summary_id = uid();
   s.ecg_attachments = Array.isArray(s.ecg_attachments) ? s.ecg_attachments : [];
-  const maxBytes = 8 * 1024 * 1024;
+  const maxBytes = 4 * 1024 * 1024;
   for(const file of Array.from(files)){
     if(file.size > maxBytes){
-      alert(file.name + " is too large. Maximum ECG attachment size is 8 MB.");
+      alert(file.name + " is too large. Maximum ECG attachment size is 4 MB.");
       continue;
     }
     if(!/^image\//.test(file.type) && file.type !== "application/pdf"){
@@ -84,13 +84,13 @@ async function handleECGFiles(files){
       continue;
     }
     try{
-      const out = await uploadECGToDrive(file, s);
+      const out = await uploadECGFile(file, s);
       if(!out.success) throw new Error(out.error || "Upload failed");
       s.ecg_attachments.push(out.file);
       localStorage.setItem("currentSummary", JSON.stringify(s));
       renderEcgAttachments(s.ecg_attachments);
     }catch(e){
-      alert("ECG file was not uploaded to Google Drive: " + e.message + "\n\nCheck that Google Drive API is enabled, GOOGLE_DRIVE_FOLDER_ID is set in Netlify, and the Drive folder is shared with the service account.");
+      alert("ECG file was not uploaded: " + e.message + "\n\nCheck that ECG_UPLOAD_WEBAPP_URL and ECG_UPLOAD_TOKEN are set in Netlify, and that the Apps Script web app is deployed as: Execute as Me, access Anyone.");
     }
   }
   const input = document.getElementById("ecgFileInput");

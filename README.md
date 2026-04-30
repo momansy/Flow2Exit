@@ -59,12 +59,13 @@ Connect the GitHub repository to Netlify. Netlify will install `googleapis`, dep
 
 ## ECG Attachments
 
-The Attach ECG button uploads ECG image/PDF files through a Netlify Function to Google Drive. The Google Drive file metadata and link are then saved inside the summary JSON in Google Sheets.
+The Attach ECG button uploads ECG image/PDF files through a Netlify Function to a Google Apps Script Web App. Apps Script saves the ECG file into your Google Drive folder, then returns a file link. That link is saved inside the summary JSON in Google Sheets.
 
-Required extra Netlify environment variable:
+Required extra Netlify environment variables:
 
 ```text
-GOOGLE_DRIVE_FOLDER_ID
+ECG_UPLOAD_WEBAPP_URL
+ECG_UPLOAD_TOKEN
 ```
 
-Also enable Google Drive API in Google Cloud and share the Drive folder with the service account as Editor.
+Use `ECG_APPS_SCRIPT_SETUP.md` and `apps-script-ecg-upload.js` to create the Apps Script uploader. This avoids the service-account Drive storage quota error.

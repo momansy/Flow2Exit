@@ -41,27 +41,31 @@ This version writes each saved draft into two places:
 
 If the dashboard still shows local drafts only, open the browser console. The most common reason is missing Netlify environment variables or the Google Sheet not being shared with the service account as Editor.
 
-## ECG attachment storage in Google Drive
+## ECG attachment storage using Google Apps Script
 
-ECG files are not stored directly inside Google Sheets. Google Sheets only stores the ECG file link inside the summary JSON. The actual ECG image/PDF is uploaded to a Google Drive folder.
+ECG files are not stored directly inside Google Sheets. Google Sheets only stores the ECG file link inside the summary JSON. The actual ECG image/PDF is uploaded to a Google Drive folder through Google Apps Script.
+
+Why Apps Script? A Google service account can write to Google Sheets, but it may fail to upload to a normal Google Drive folder because service accounts do not have normal Drive storage quota. Apps Script runs as your Google account and saves the files into your Drive folder.
 
 Extra setup required:
 
-1. In Google Cloud Console, enable **Google Drive API** in the same project.
-2. Create a Google Drive folder named `Flow2Exit_ECG_Attachments`.
-3. Share that folder with the same service account email as **Editor**.
-4. Copy the Drive folder ID from the folder URL:
+1. Open `apps-script-ecg-upload.js` from this package.
+2. Paste it into a new Google Apps Script project.
+3. Deploy it as a Web App:
 
 ```text
-https://drive.google.com/drive/folders/FOLDER_ID_HERE
+Execute as: Me
+Who has access: Anyone
 ```
 
-5. Add this environment variable in Netlify:
+4. Copy the Web App URL.
+5. Add these environment variables in Netlify:
 
 ```text
-GOOGLE_DRIVE_FOLDER_ID=FOLDER_ID_HERE
+ECG_UPLOAD_WEBAPP_URL=your_apps_script_web_app_url
+ECG_UPLOAD_TOKEN=flow2exit-secret-123
 ```
 
 6. Redeploy the Netlify site.
 
-The app uploads ECG images/PDFs to this folder, then saves the Drive file link in the summary record.
+See `ECG_APPS_SCRIPT_SETUP.md` for the full ECG upload setup.
