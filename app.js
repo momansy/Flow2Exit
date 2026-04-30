@@ -43,6 +43,83 @@ async function addMedicineToSheets(medicine){
   try { return await apiPost("/add-medicine", medicine); }
   catch(e){ console.warn("Google Sheets medicine add unavailable; stored locally only.", e.message); return { success:false, error:e.message }; }
 }
+
+async function uploadECGToDrive(file, summary){
+  const dataUrl = await fileToDataUrl(file);
+  return await apiPost("/upload-ecg", {
+    fileName: file.name,
+    mimeType: file.type || "application/octet-stream",
+    size: file.size,
+    dataUrl,
+    summary_id: summary && summary.summary_id ? summary.summary_id : "",
+    patient_name: summary && summary.patient_name ? summary.patient_name : "",
+    mrn: summary && summary.mrn ? summary.mrn : ""
+  });
+}
+function fileToDataUrl(file){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error || new Error("Could not read file"));
+    reader.readAsDataURL(file);
+  });
+}
+function triggerECGUpload(){
+  const input = document.getElementById("ecgFileInput");
+  if(input) input.click();
+}
+async function handleECGFiles(files){
+  if(!files || !files.length) return;
+  let s = collectSummary();
+  if(!s.summary_id) s.summary_id = uid();
+  s.ecg_attachments = Array.isArray(s.ecg_attachments) ? s.ecg_attachments : [];
+  const maxBytes = 8 * 1024 * 1024;
+  for(const file of Array.from(files)){
+    if(file.size > maxBytes){
+      alert(file.name + " is too large. Maximum ECG attachment size is 8 MB.");
+      continue;
+    }
+    if(!/^image\//.test(file.type) && file.type !== "application/pdf"){
+      alert(file.name + " is not supported. Please upload an ECG image or PDF.");
+      continue;
+    }
+    try{
+      const out = await uploadECGToDrive(file, s);
+      if(!out.success) throw new Error(out.error || "Upload failed");
+      s.ecg_attachments.push(out.file);
+      localStorage.setItem("currentSummary", JSON.stringify(s));
+      renderEcgAttachments(s.ecg_attachments);
+    }catch(e){
+      alert("ECG file was not uploaded to Google Drive: " + e.message + "\n\nCheck that Google Drive API is enabled, GOOGLE_DRIVE_FOLDER_ID is set in Netlify, and the Drive folder is shared with the service account.");
+    }
+  }
+  const input = document.getElementById("ecgFileInput");
+  if(input) input.value = "";
+}
+function renderEcgAttachments(attachments){
+  const box = document.getElementById("ecgAttachmentList");
+  if(!box) return;
+  const list = Array.isArray(attachments) ? attachments : [];
+  if(!list.length){
+    box.classList.add("muted");
+    box.innerHTML = "No ECG file attached.";
+    return;
+  }
+  box.classList.remove("muted");
+  box.innerHTML = list.map((f,i)=>{
+    const name = escapeHtml(f.name || f.fileName || ("ECG file " + (i+1)));
+    const url = escapeHtml(f.webViewLink || f.url || "#");
+    const size = f.size ? " • " + Math.round(Number(f.size)/1024) + " KB" : "";
+    return '<div class="attachment-item"><a href="' + url + '" target="_blank" rel="noopener">' + name + '</a><span class="muted">' + size + '</span><button type="button" onclick="removeECGAttachment(' + i + ')">Remove</button></div>';
+  }).join("");
+}
+function removeECGAttachment(index){
+  const s = collectSummary();
+  s.ecg_attachments = Array.isArray(s.ecg_attachments) ? s.ecg_attachments : [];
+  s.ecg_attachments.splice(index, 1);
+  localStorage.setItem("currentSummary", JSON.stringify(s));
+  renderEcgAttachments(s.ecg_attachments);
+}
 function renderDoctorName(){ document.querySelectorAll(".doctor-name, #doctorNameTop").forEach(el => el.textContent = DOCTOR_PROFILE.name); }
 
 const DEFAULT_MEDICINE_DATABASE = [
@@ -206,6 +283,7 @@ const DEMO_PATIENT = {
   ecg: "ST elevation in V1-V4 on admission. Post PCI ST segments resolved.",
   lab: "Troponin I elevated, trending down. Lipid profile done.",
   echo: "LVEF 50%, mild anterior wall hypokinesia.",
+  ecg_attachments: [],
   procedure_done: true,
   access_site: "Radial",
   procedure_doctor: "Dr. R. Patel",
@@ -264,7 +342,7 @@ function emptySummary(){
   return {
     summary_id: uid(), status:"new", patient_name:"", mrn:"", age:"", gender:"", bed:"", civil_id:"", contact:"", allergies:"",
     admission_date:"", discharge_date:"", admission_reason:"", final_diagnosis:"", history_of_patient:"", hospital_course:"",
-    ecg:"", lab:"", echo:"", procedure_done:false, access_site:"", procedure_doctor:"", procedure_date:"", procedure_findings:"",
+    ecg:"", lab:"", echo:"", ecg_attachments:[], procedure_done:false, access_site:"", procedure_doctor:"", procedure_date:"", procedure_findings:"",
     home_medications:[], discharge_medications:[], pending_results:"", cognitive_status:"", functional_status:"", needs_caregiver:false,
     instruction_type:"", patient_instruction_text:"", explained_patient:false, explained_caregiver:false,
     followup_date:"", followup_time:"", followup_doctor:"", followup_room:"", followup_note:""
@@ -338,7 +416,7 @@ function openPatient(i){
   if(!p) return;
   if(p.source === "demo" || p.patient_id === "demo-robert-alvarez") return openExistingPatient();
   const drafts = JSON.parse(localStorage.getItem("savedDrafts") || "[]");
-  const draft = drafts.find(d => (d.summary_id && d.summary_id === p.summary_id) || (d.mrn && p.mrn && d.mrn === p.mrn));
+  const draft = drafts.find(d => (d.summary_id && d.summary_id === p.summary_id) || samePatient(d, p));
   const base = draft || {...emptySummary(), ...p, summary_id: uid(), status:"new"};
   localStorage.setItem("currentSummary", JSON.stringify(base));
   location.href = "builder.html";
@@ -374,8 +452,127 @@ async function loadBuilder(){
   document.getElementById("sideMRN").textContent = "MRN: " + (s.mrn || "");
   document.getElementById("sideMeta").textContent = `Age: ${s.age || ""} • Bed: ${s.bed || ""}`;
   document.getElementById("updatedAt").textContent = s.updated_at || "Not saved yet";
+  renderEcgAttachments(s.ecg_attachments || []);
+  renderSidebarState(s);
+  setupLiveSidebarUpdates();
   renderHomeMedications(s.home_medications || []);
   renderDischargeMedications(s.discharge_medications || []);
+  renderSidebarState(collectSummary());
+}
+
+
+function parseDateForTimeline(value){
+  if(!value) return null;
+  const d = new Date(value);
+  if(isNaN(d)) return null;
+  return d;
+}
+function sidebarDate(value){
+  const d = parseDateForTimeline(value);
+  if(!d) return "Date pending";
+  return d.toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" });
+}
+function cleanText(value){ return String(value ?? "").trim(); }
+function shortText(value, fallback=""){
+  const text = cleanText(value || fallback);
+  if(!text) return "";
+  return text.length > 115 ? text.slice(0, 112).trim() + "..." : text;
+}
+function buildTimelineEvents(s){
+  const events = [];
+  const add = (date, title, description, priority=50) => {
+    const desc = cleanText(description);
+    if(!date && !desc) return;
+    events.push({ date, title, description: desc, priority });
+  };
+
+  if(cleanText(s.admission_date) || cleanText(s.admission_reason)){
+    add(s.admission_date, "Arrival", shortText(s.admission_reason, "Patient admitted to cardiology service."), 10);
+  }
+
+  const hasProcedure = !!s.procedure_done || cleanText(s.access_site) || cleanText(s.procedure_doctor) || cleanText(s.procedure_date) || cleanText(s.procedure_findings);
+  if(hasProcedure){
+    const parts = [];
+    if(s.procedure_done) parts.push("PCI performed");
+    if(cleanText(s.access_site)) parts.push(`${s.access_site} access`);
+    if(cleanText(s.procedure_doctor)) parts.push(`by ${s.procedure_doctor}`);
+    if(cleanText(s.procedure_findings)) parts.push(shortText(s.procedure_findings));
+    add(s.procedure_date || s.admission_date, s.procedure_done ? "PCI" : "Coronary Procedure", parts.join(" • ") || "Procedure details recorded.", 20);
+  }
+
+  const course = cleanText(s.hospital_course);
+  if(course && /\bicu\b/i.test(course)){
+    add(s.procedure_date || s.admission_date || s.discharge_date, "ICU / Monitoring", shortText(course), 30);
+  }
+
+  if(cleanText(s.discharge_date) || cleanText(s.final_diagnosis)){
+    add(s.discharge_date, "Discharge", shortText(s.final_diagnosis, "Discharge summary prepared."), 40);
+  }
+
+  if(cleanText(s.followup_date) || cleanText(s.followup_time) || cleanText(s.followup_doctor) || cleanText(s.followup_room)){
+    const parts = [];
+    if(cleanText(s.followup_time)) parts.push(`Time: ${s.followup_time}`);
+    if(cleanText(s.followup_doctor)) parts.push(`Doctor: ${s.followup_doctor}`);
+    if(cleanText(s.followup_room)) parts.push(`Location: ${s.followup_room}`);
+    if(cleanText(s.followup_note)) parts.push(shortText(s.followup_note));
+    add(s.followup_date, "Follow-up", parts.join(" • ") || "Follow-up appointment planned.", 60);
+  }
+
+  return events.sort((a,b)=>{
+    const da = parseDateForTimeline(a.date);
+    const db = parseDateForTimeline(b.date);
+    if(da && db && da - db !== 0) return da - db;
+    if(da && !db) return -1;
+    if(!da && db) return 1;
+    return a.priority - b.priority;
+  });
+}
+function renderTimeline(s){
+  const list = document.getElementById("timelineList") || document.querySelector(".timeline");
+  if(!list) return;
+  const events = buildTimelineEvents(s || {});
+  if(!events.length){
+    list.innerHTML = `<li><b>No timeline yet</b><br><span>Fill admission/procedure/discharge/follow-up dates to build the timeline.</span></li>`;
+    return;
+  }
+  list.innerHTML = events.map(ev => `<li><b>${escapeHtml(sidebarDate(ev.date))} – ${escapeHtml(ev.title)}</b><br><span>${escapeHtml(ev.description)}</span></li>`).join("");
+}
+function hasAnyMedication(s){
+  return (s.home_medications || []).some(m => cleanText(m.name) || cleanText(m.action) || cleanText(m.reason)) ||
+         (s.discharge_medications || []).some(m => cleanText(m.medication) || cleanText(m.purpose) || cleanText(m.note) || timingAbbrev(m));
+}
+function updateSectionProgress(s){
+  const patientDone = !!(cleanText(s.patient_name) && cleanText(s.mrn) && cleanText(s.age) && cleanText(s.bed) && cleanText(s.admission_date) && cleanText(s.discharge_date));
+  const diagnosisDone = !!(cleanText(s.final_diagnosis) && (cleanText(s.hospital_course) || cleanText(s.history_of_patient)) && (cleanText(s.ecg) || cleanText(s.lab) || cleanText(s.echo) || cleanText(s.procedure_findings)));
+  const medsDone = hasAnyMedication(s);
+  const set = (id, val) => { const el = document.getElementById(id); if(el) el.checked = !!val; };
+  set("checkPatient", patientDone);
+  set("checkDiagnosis", diagnosisDone);
+  set("checkMeds", medsDone);
+}
+function renderSidebarState(s){
+  if(!s) return;
+  const nameEl = document.getElementById("sideName");
+  const mrnEl = document.getElementById("sideMRN");
+  const metaEl = document.getElementById("sideMeta");
+  if(nameEl) nameEl.textContent = s.patient_name || "New Patient";
+  if(mrnEl) mrnEl.textContent = "MRN: " + (s.mrn || "");
+  if(metaEl) metaEl.textContent = `Age: ${s.age || ""} • Bed: ${s.bed || ""}`;
+  renderTimeline(s);
+  updateSectionProgress(s);
+}
+function setupLiveSidebarUpdates(){
+  if(window.__flow2exitSidebarLiveBound) return;
+  window.__flow2exitSidebarLiveBound = true;
+  const handler = () => {
+    try { renderSidebarState(collectSummary()); } catch(e) {}
+  };
+  document.addEventListener("input", e => {
+    if(e.target && e.target.closest(".builder-main")) handler();
+  });
+  document.addEventListener("change", e => {
+    if(e.target && e.target.closest(".builder-main")) handler();
+  });
 }
 
 function collectSummary(){
@@ -416,6 +613,7 @@ function collectSummary(){
     start_date: r.querySelector(".dm-start")?.value || "",
     end_date: r.querySelector(".dm-end")?.value || ""
   }));
+  s.ecg_attachments = Array.isArray(old.ecg_attachments) ? old.ecg_attachments : [];
   s.updated_at = new Date().toLocaleString();
   return s;
 }
@@ -600,8 +798,10 @@ function doctorReportHtml(s){
     }).join("");
   const dischargeHtml = dischargeItems ? `<p><b>Discharge Medications:</b></p><div class="report-paragraph-list">${dischargeItems}</div>` : "";
 
+  const ecgAttachmentLines = Array.isArray(s.ecg_attachments) && s.ecg_attachments.length ? `ECG Attachments: ${s.ecg_attachments.map((f,i)=>`<a href="${escapeHtml(f.webViewLink || f.url || "#")}" target="_blank">${escapeHtml(f.name || "ECG file " + (i+1))}</a>`).join(", ")}` : "";
   const investigationLines = [
     hasValue(s.ecg) ? `ECG: ${nl(s.ecg)}` : "",
+    ecgAttachmentLines,
     hasValue(s.lab) ? `Lab: ${nl(s.lab)}` : "",
     hasValue(s.echo) ? `Echo: ${nl(s.echo)}` : ""
   ].filter(Boolean).join("<br>");

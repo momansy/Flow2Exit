@@ -23,19 +23,17 @@
       </div>
       <hr>
       <h4>Problem-Oriented Timeline</h4>
-      <ul class="timeline">
-        <li><b>22 Mar 2026 – Arrival</b><br><span>Presented with chest pain, ST-elevation on ECG.</span></li>
-        <li><b>23 Mar 2026 – PCI</b><br><span>Primary PCI with drug-eluting stent.</span></li>
-        <li><b>24 Mar 2026 – ICU</b><br><span>Monitoring, started dual antiplatelet therapy.</span></li>
+      <ul class="timeline" id="timelineList">
+        <li><b>No timeline yet</b><br><span>Fill admission/procedure/discharge/follow-up dates to build the timeline.</span></li>
       </ul>
       <hr>
       <h4>Section Progress</h4>
-      <label class="progress-check"><input type="checkbox" id="checkPatient"> <span>Patient Information</span></label>
-      <label class="progress-check"><input type="checkbox" id="checkDiagnosis"> <span>Diagnosis & Findings</span></label>
-      <label class="progress-check"><input type="checkbox" id="checkMeds"> <span>Medications</span></label>
+      <label class="progress-check"><input type="checkbox" id="checkPatient" disabled> <span>Patient Information</span></label>
+      <label class="progress-check"><input type="checkbox" id="checkDiagnosis" disabled> <span>Diagnosis & Findings</span></label>
+      <label class="progress-check"><input type="checkbox" id="checkMeds" disabled> <span>Medications</span></label>
       <hr>
       <button class="primary full" onclick="generateDraftText()">Generate Draft Summary</button>
-      <button class="full">Attach ECG</button>
+      <button class="full" onclick="triggerECGUpload()">Attach ECG</button>
     </aside>
 
     <main class="builder-main">
@@ -78,6 +76,14 @@
         <div class="card">
           <h2>Investigations</h2>
           <label>ECG<textarea id="ecg"></textarea></label>
+          <div class="ecg-attachment-box">
+            <input id="ecgFileInput" type="file" accept="image/*,.pdf" multiple hidden onchange="handleECGFiles(this.files)">
+            <div class="ecg-attachment-header">
+              <b>ECG Attachments</b>
+              <button type="button" onclick="triggerECGUpload()">Attach ECG file</button>
+            </div>
+            <div id="ecgAttachmentList" class="attachment-list muted">No ECG file attached.</div>
+          </div>
           <label>Lab<textarea id="lab"></textarea></label>
           <label>Echo<textarea id="echo"></textarea></label>
         </div>

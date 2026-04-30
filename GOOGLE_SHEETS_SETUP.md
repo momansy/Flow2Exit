@@ -40,3 +40,28 @@ This version writes each saved draft into two places:
 - `Patients` tab: stores one patient row so the patient appears on the dashboard as a separate patient card.
 
 If the dashboard still shows local drafts only, open the browser console. The most common reason is missing Netlify environment variables or the Google Sheet not being shared with the service account as Editor.
+
+## ECG attachment storage in Google Drive
+
+ECG files are not stored directly inside Google Sheets. Google Sheets only stores the ECG file link inside the summary JSON. The actual ECG image/PDF is uploaded to a Google Drive folder.
+
+Extra setup required:
+
+1. In Google Cloud Console, enable **Google Drive API** in the same project.
+2. Create a Google Drive folder named `Flow2Exit_ECG_Attachments`.
+3. Share that folder with the same service account email as **Editor**.
+4. Copy the Drive folder ID from the folder URL:
+
+```text
+https://drive.google.com/drive/folders/FOLDER_ID_HERE
+```
+
+5. Add this environment variable in Netlify:
+
+```text
+GOOGLE_DRIVE_FOLDER_ID=FOLDER_ID_HERE
+```
+
+6. Redeploy the Netlify site.
+
+The app uploads ECG images/PDFs to this folder, then saves the Drive file link in the summary record.

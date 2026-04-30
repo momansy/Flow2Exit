@@ -56,3 +56,15 @@ Share the Google Sheet with your service account email as Editor.
 ## Deploy
 
 Connect the GitHub repository to Netlify. Netlify will install `googleapis`, deploy static files, and deploy the functions in `netlify/functions`.
+
+## ECG Attachments
+
+The Attach ECG button uploads ECG image/PDF files through a Netlify Function to Google Drive. The Google Drive file metadata and link are then saved inside the summary JSON in Google Sheets.
+
+Required extra Netlify environment variable:
+
+```text
+GOOGLE_DRIVE_FOLDER_ID
+```
+
+Also enable Google Drive API in Google Cloud and share the Drive folder with the service account as Editor.
