@@ -763,6 +763,8 @@ function renderReports(){
   document.getElementById("patientReport").innerHTML = patientReportHtml(s);
 }
 function formatDate(d){ if(!d) return ""; const x=new Date(d); return isNaN(x)?d:x.toLocaleDateString("en-GB"); }
+function hasValue(v){ return String(v ?? "").trim() !== ""; }
+function safe(v){ return escapeHtml(v || ""); }
 function doctorReportHtml(s){
   const safe = v => escapeHtml(v || "");
   const hasValue = v => String(v ?? "").trim() !== "";
@@ -808,10 +810,8 @@ function doctorReportHtml(s){
     }).join("");
   const dischargeHtml = dischargeItems ? `<p><b>Discharge Medications:</b></p><div class="report-paragraph-list">${dischargeItems}</div>` : "";
 
-  const ecgAttachmentLines = Array.isArray(s.ecg_attachments) && s.ecg_attachments.length ? `ECG Attachments: ${s.ecg_attachments.map((f,i)=>`<a href="${escapeHtml(f.webViewLink || f.url || "#")}" target="_blank">${escapeHtml(f.name || "ECG file " + (i+1))}</a>`).join(", ")}` : "";
   const investigationLines = [
     hasValue(s.ecg) ? `ECG: ${nl(s.ecg)}` : "",
-    ecgAttachmentLines,
     hasValue(s.lab) ? `Lab: ${nl(s.lab)}` : "",
     hasValue(s.echo) ? `Echo: ${nl(s.echo)}` : ""
   ].filter(Boolean).join("<br>");
@@ -873,6 +873,44 @@ function patientReportHtml(s){
   <div><div class="p-section"><h3><span class="num">4</span>FOLLOW-UP</h3><p>📅 Appointment: ${formatDate(s.followup_date)} ${escapeHtml(s.followup_time||"")}</p><p>📍 Location: ${escapeHtml(s.followup_room)}</p><p>👨‍⚕️ Doctor: ${escapeHtml(s.followup_doctor)}</p></div>
   <div class="p-section"><h3><span class="num">5</span>DAILY INSTRUCTIONS</h3>${patientInstructionBlock(s)}</div></div></div>
   <div class="notes"><h3><span class="num">6</span>IMPORTANT NOTES</h3><ul><li>Bring this paper to your next visit.</li><li>Take your medications exactly as prescribed.</li><li>Do not miss your follow-up appointment.</li></ul><p>${nl(s.followup_note||"")}</p></div><div class="footer-strip">Clear information. Better understanding. Safer recovery.</div></div>`;
+}
+async function copyDoctorReport(){
+  const source = document.getElementById("doctorReport");
+  if(!source){ alert("Doctor report is not available yet."); return; }
+  const plainText = source.innerText.trim();
+  const htmlText = `<!doctype html><html><body><div style="font-family:'Times New Roman',serif;font-size:14px;line-height:1.35;color:#000;"></div></body></html>`;
+  try{
+    if(navigator.clipboard && window.ClipboardItem){
+      await navigator.clipboard.write([new ClipboardItem({
+        "text/plain": new Blob([plainText], {type:"text/plain"}),
+        "text/html": new Blob([htmlText], {type:"text/html"})
+      })]);
+    }else if(navigator.clipboard && navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(plainText);
+    }else{
+      const ta = document.createElement("textarea");
+      ta.value = plainText;
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      document.execCommand("copy");
+      ta.remove();
+    }
+    alert("Doctor report copied. You can paste it into Word or another document.");
+  }catch(err){
+    const ta = document.createElement("textarea");
+    ta.value = plainText;
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    document.execCommand("copy");
+    ta.remove();
+    alert("Doctor report copied as plain text.");
+  }
 }
 function printDoctorReport(){ printPart("doctorReport"); }
 function printPatientReport(){ printPart("patientReport"); }
