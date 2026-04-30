@@ -913,128 +913,9 @@ async function copyDoctorReport(){
   }
 }
 function printDoctorReport(){ printPart("doctorReport"); }
-function printPatientReport(){ printPatientLandscapePDF(); }
+function printPatientReport(){ printPart("patientReport"); }
 function downloadDoctorPDF(){ printDoctorReport(); }
-function downloadPatientPDF(){ savePatientLandscapePDF(); }
-
-function loadExternalScript(src){
-  return new Promise((resolve, reject)=>{
-    if(document.querySelector('script[src="' + src + '"]')) return resolve();
-    const script = document.createElement("script");
-    script.src = src;
-    script.onload = resolve;
-    script.onerror = () => reject(new Error("Could not load " + src));
-    document.head.appendChild(script);
-  });
-}
-
-async function ensurePdfLibraries(){
-  if(!window.html2canvas){
-    await loadExternalScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js");
-  }
-  if(!window.jspdf || !window.jspdf.jsPDF){
-    await loadExternalScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
-  }
-}
-
-function reportFileName(prefix){
-  const s = JSON.parse(localStorage.getItem("currentSummary") || "{}");
-  const patient = String(s.patient_name || "Patient").replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "");
-  const mrn = String(s.mrn || "NoMRN").replace(/[^a-z0-9]+/gi, "_");
-  return `${prefix}_${patient}_${mrn}.pdf`;
-}
-
-async function createPatientLandscapePDF(){
-  const source = document.getElementById("patientReport");
-  if(!source){ alert("Patient report is not available."); return null; }
-  await ensurePdfLibraries();
-
-  const holder = document.createElement("div");
-  holder.style.position = "fixed";
-  holder.style.left = "-12000px";
-  holder.style.top = "0";
-  holder.style.width = "1123px";
-  holder.style.background = "#eef6ff";
-  holder.style.padding = "0";
-  holder.style.zIndex = "-1";
-
-  const clone = source.cloneNode(true);
-  clone.style.width = "1123px";
-  clone.style.maxWidth = "1123px";
-  clone.style.minHeight = "794px";
-  clone.style.padding = "0";
-  clone.style.margin = "0";
-  clone.style.borderRadius = "0";
-  clone.style.background = "#eef6ff";
-  clone.style.overflow = "visible";
-
-  const sheet = clone.querySelector(".patient-sheet");
-  if(sheet){
-    sheet.style.width = "1123px";
-    sheet.style.minHeight = "760px";
-    sheet.style.maxHeight = "none";
-    sheet.style.overflow = "hidden";
-    sheet.style.borderRadius = "14px";
-  }
-
-  holder.appendChild(clone);
-  document.body.appendChild(holder);
-
-  try{
-    const canvas = await window.html2canvas(clone, {
-      scale: 2,
-      useCORS: true,
-      backgroundColor: "#eef6ff",
-      windowWidth: 1123,
-      scrollX: 0,
-      scrollY: 0
-    });
-
-    const jsPDF = window.jspdf.jsPDF;
-    const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
-    const pageW = 297;
-    const pageH = 210;
-    const imgData = canvas.toDataURL("image/jpeg", 0.95);
-    let imgW = pageW;
-    let imgH = canvas.height * imgW / canvas.width;
-    if(imgH > pageH){
-      imgH = pageH;
-      imgW = canvas.width * imgH / canvas.height;
-    }
-    const x = (pageW - imgW) / 2;
-    const y = (pageH - imgH) / 2;
-    pdf.addImage(imgData, "JPEG", x, y, imgW, imgH);
-    return pdf;
-  } finally {
-    holder.remove();
-  }
-}
-
-async function savePatientLandscapePDF(){
-  try{
-    const pdf = await createPatientLandscapePDF();
-    if(pdf) pdf.save(reportFileName("Patient_Discharge_Instructions_Landscape"));
-  }catch(err){
-    alert("Could not create patient landscape PDF: " + err.message);
-  }
-}
-
-async function printPatientLandscapePDF(){
-  try{
-    const pdf = await createPatientLandscapePDF();
-    if(!pdf) return;
-    pdf.autoPrint();
-    const url = pdf.output("bloburl");
-    const w = window.open(url, "_blank");
-    if(!w){
-      pdf.save(reportFileName("Patient_Discharge_Instructions_Landscape"));
-      alert("Popup was blocked. The landscape PDF was downloaded instead. Open it and print it.");
-    }
-  }catch(err){
-    alert("Could not print patient landscape PDF: " + err.message);
-  }
-}
-
+function downloadPatientPDF(){ printPatientReport(); }
 function printPart(id){
   const source = document.getElementById(id);
   if(!source) return;
@@ -1043,22 +924,69 @@ function printPart(id){
   const title = id === "doctorReport" ? "Doctor Discharge Summary" : "Patient Discharge Instructions";
   const isPatient = id === "patientReport";
   const pageRule = isPatient
-    ? "@page{size:297mm 210mm;margin:5mm;} @media print{@page{size:297mm 210mm;margin:5mm;}}"
+    ? "@page{size:A4 landscape;margin:0;} @media print{@page{size:A4 landscape;margin:0;}}"
     : "@page{size:A4;margin:12mm;} @media print{@page{size:A4;margin:12mm;}}";
+
+  // Patient report: fixed A4 landscape canvas.
+  // Slightly compressed to avoid Chrome/Edge creating an extra blank page from rounding overflow.
   const patientOnePageCss = isPatient ? `
-    html,body{width:297mm;min-height:210mm;}
-    main.patient-report{width:287mm;max-width:287mm;margin:0 auto;padding:0!important;background:#eef6ff!important;transform:none!important;}
-    .patient-sheet{width:287mm;min-height:187mm;max-height:190mm;overflow:hidden!important;border-radius:10px!important;}
-    .patient-header{padding:10px 16px!important;font-size:15px!important;}
-    .patient-info{padding:7px 16px!important;font-size:11px!important;}
-    .patient-body{display:grid!important;grid-template-columns:1fr 1fr!important;gap:8px!important;padding:10px 14px!important;font-size:10px!important;line-height:1.18!important;}
-    .p-section{padding:6px 8px!important;}
-    .p-section h3{font-size:12px!important;margin:0 0 5px!important;}
-    .num{width:23px!important;height:23px!important;font-size:12px!important;margin-right:5px!important;}
-    .med-table td,.med-table th{padding:4px!important;font-size:9px!important;}
-    .warning{padding:6px!important;}
-    .notes{margin:6px 12px!important;padding:7px 10px!important;font-size:10px!important;}
-    .footer-strip{padding:9px 14px!important;font-size:11px!important;}
+    html,body{
+      width:297mm!important;
+      height:210mm!important;
+      max-height:210mm!important;
+      margin:0!important;
+      padding:0!important;
+      overflow:hidden!important;
+    }
+    main.patient-report{
+      width:297mm!important;
+      height:210mm!important;
+      max-width:297mm!important;
+      max-height:210mm!important;
+      margin:0!important;
+      padding:4mm!important;
+      background:#eef6ff!important;
+      transform:none!important;
+      overflow:hidden!important;
+      break-after:avoid!important;
+      page-break-after:avoid!important;
+      break-before:avoid!important;
+      page-break-before:avoid!important;
+      break-inside:avoid!important;
+      page-break-inside:avoid!important;
+    }
+    .patient-sheet{
+      width:100%!important;
+      height:100%!important;
+      min-height:0!important;
+      max-height:none!important;
+      overflow:hidden!important;
+      border-radius:10px!important;
+      break-after:avoid!important;
+      page-break-after:avoid!important;
+      break-inside:avoid!important;
+      page-break-inside:avoid!important;
+    }
+    .patient-header{padding:8px 14px!important;font-size:14px!important;}
+    .patient-info{padding:6px 14px!important;font-size:10.5px!important;}
+    .patient-body{display:grid!important;grid-template-columns:1fr 1fr!important;gap:7px!important;padding:8px 12px!important;font-size:9.5px!important;line-height:1.12!important;}
+    .p-section{padding:5px 7px!important;}
+    .p-section h3{font-size:11px!important;margin:0 0 4px!important;}
+    .p-section p{margin:3px 0!important;}
+    .num{width:21px!important;height:21px!important;font-size:11px!important;margin-right:4px!important;}
+    .med-table td,.med-table th{padding:3px!important;font-size:8.5px!important;line-height:1.1!important;}
+    .warning{padding:5px!important;}
+    .notes{margin:5px 10px!important;padding:6px 8px!important;font-size:9.5px!important;}
+    .footer-strip{padding:7px 12px!important;font-size:10px!important;}
+    @media print{
+      html,body,main.patient-report,.patient-sheet{
+        overflow:hidden!important;
+        break-after:avoid!important;
+        page-break-after:avoid!important;
+        break-before:avoid!important;
+        page-break-before:avoid!important;
+      }
+    }
   ` : "";
   const printCss = `
     ${pageRule}
@@ -1088,7 +1016,10 @@ function printPart(id){
     .notes{background:#eef6ff;border:1px solid #bdd0ea;margin:15px;padding:14px;border-radius:12px;break-inside:avoid;page-break-inside:avoid;}
     .footer-strip{background:#d9eaff;padding:16px;color:#123b78;font-weight:700;}
     ${patientOnePageCss}
-    @media print{html,body{overflow:visible!important;height:auto!important;} body::-webkit-scrollbar,*::-webkit-scrollbar{display:none!important;width:0!important;height:0!important;}}
+    ${isPatient
+      ? "@media print{html,body{overflow:hidden!important;height:210mm!important;max-height:210mm!important;} main.patient-report,.patient-sheet{overflow:hidden!important;break-after:avoid!important;page-break-after:avoid!important;} body::-webkit-scrollbar,*::-webkit-scrollbar{display:none!important;width:0!important;height:0!important;}}"
+      : "@media print{html,body{overflow:visible!important;height:auto!important;} body::-webkit-scrollbar,*::-webkit-scrollbar{display:none!important;width:0!important;height:0!important;}}"
+    }
   `;
   const w = window.open("", "_blank");
   w.document.open();
