@@ -732,6 +732,7 @@ function setupSmartMedicineRow(row){
 
 function autoInstruction(){
   const type = document.getElementById("instruction_type").value;
+  const box = document.getElementById("patient_instruction_text");
   const text = {
     "General Discharge Instructions":"Take your medicines as prescribed. Attend your follow-up visit. Return to the emergency department if severe symptoms occur.",
     "Medication Instructions":"Do not stop blood thinner medicines unless your doctor tells you. Take medicines at the same time every day.",
@@ -743,7 +744,16 @@ function autoInstruction(){
     "Warning Signs":"Go to the ER immediately if you have chest pain, shortness of breath, bleeding, swelling, dizziness, or fainting.",
     "Follow-up Instructions":"Bring this paper to your next visit and do not miss your follow-up appointment."
   };
-  document.getElementById("patient_instruction_text").value = text[type] || "";
+
+  if(type === "Custom Instruction"){
+    box.placeholder = "Write custom patient instructions here...";
+    if(!box.value.trim()) box.value = "";
+    box.focus();
+    return;
+  }
+
+  box.placeholder = "Instructions will appear here and can be edited.";
+  box.value = text[type] || "";
 }
 
 function renderReports(){
@@ -848,6 +858,11 @@ function timingLabel(m){
   if(m.hs) labels.push("at bedtime");
   return labels.join(", ");
 }
+function patientInstructionBlock(s){
+  const customText = hasValue(s.patient_instruction_text) ? `<p><b>${safe(s.instruction_type || "Instructions")}</b><br>${nl(s.patient_instruction_text)}</p>` : "";
+  if(customText) return customText;
+  return `<p><b>Activity</b><br>Avoid heavy lifting for 7 days. Walk as tolerated.</p><p><b>Wound Care</b><br>Keep the area clean and dry. Do not soak in water for 5 days.</p><p><b>Diet</b><br>Eat a heart-healthy diet. Reduce salt and fatty foods.</p>`;
+}
 function patientReportHtml(s){
   const meds=(s.discharge_medications||[]).filter(m=>m.medication||m.purpose||m.note||m.timing).map(m=>`<tr><td>${escapeHtml(m.medication)}</td><td>${escapeHtml(m.purpose)}</td><td>${escapeHtml(m.note || m.timing || timingLabel(m))}</td></tr>`).join("");
   return `<div class="patient-sheet"><div class="patient-header"><span>🏥 JABER AL AHMAD HOSPITAL</span><span>📅 Discharge Date: ${formatDate(s.discharge_date)}</span></div>
@@ -856,7 +871,7 @@ function patientReportHtml(s){
   <div class="p-section"><h3><span class="num">2</span>YOUR MEDICATIONS</h3><table class="med-table"><tr><th>Medication</th><th>Purpose</th><th>How to take</th></tr>${meds}</table><p style="color:red;font-weight:700">⚠ Do NOT stop these medications unless your doctor tells you.</p></div>
   <div class="p-section"><h3><span class="num">3</span>WARNING SIGNS</h3><div class="warning">Go to the ER immediately if you have:<ul><li>Chest pain</li><li>Shortness of breath</li><li>Bleeding or swelling at the wound site</li><li>Dizziness or fainting</li></ul></div></div></div>
   <div><div class="p-section"><h3><span class="num">4</span>FOLLOW-UP</h3><p>📅 Appointment: ${formatDate(s.followup_date)} ${escapeHtml(s.followup_time||"")}</p><p>📍 Location: ${escapeHtml(s.followup_room)}</p><p>👨‍⚕️ Doctor: ${escapeHtml(s.followup_doctor)}</p></div>
-  <div class="p-section"><h3><span class="num">5</span>DAILY INSTRUCTIONS</h3><p><b>Activity</b><br>Avoid heavy lifting for 7 days. Walk as tolerated.</p><p><b>Wound Care</b><br>Keep the area clean and dry. Do not soak in water for 5 days.</p><p><b>Diet</b><br>Eat a heart-healthy diet. Reduce salt and fatty foods.</p></div></div></div>
+  <div class="p-section"><h3><span class="num">5</span>DAILY INSTRUCTIONS</h3>${patientInstructionBlock(s)}</div></div></div>
   <div class="notes"><h3><span class="num">6</span>IMPORTANT NOTES</h3><ul><li>Bring this paper to your next visit.</li><li>Take your medications exactly as prescribed.</li><li>Do not miss your follow-up appointment.</li></ul><p>${nl(s.followup_note||"")}</p></div><div class="footer-strip">Clear information. Better understanding. Safer recovery.</div></div>`;
 }
 function printDoctorReport(){ printPart("doctorReport"); }
