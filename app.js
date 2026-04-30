@@ -867,10 +867,10 @@ function patientReportHtml(s){
   const meds=(s.discharge_medications||[]).filter(m=>m.medication||m.purpose||m.note||m.timing).map(m=>`<tr><td>${escapeHtml(m.medication)}</td><td>${escapeHtml(m.purpose)}</td><td>${escapeHtml(m.note || m.timing || timingLabel(m))}</td></tr>`).join("");
   return `<div class="patient-sheet"><div class="patient-header"><span>🏥 JABER AL AHMAD HOSPITAL</span><span>📅 Discharge Date: ${formatDate(s.discharge_date)}</span></div>
   <div class="patient-info"><span>Patient Name: ${escapeHtml(s.patient_name)}</span><span>Patient ID: ${escapeHtml(s.mrn)}</span></div>
-  <div class="patient-body"><div><div class="p-section"><h3><span class="num">1</span>WHAT HAPPENED TO YOU?</h3><p>You had a heart procedure called PCI/stent treatment to improve blood flow. ${escapeHtml(s.admission_reason||"")}</p></div>
+  <div class="patient-body"><div class="patient-col left-col"><div class="p-section"><h3><span class="num">1</span>WHAT HAPPENED TO YOU?</h3><p>You had a heart procedure called PCI/stent treatment to improve blood flow. ${escapeHtml(s.admission_reason||"")}</p></div>
   <div class="p-section"><h3><span class="num">2</span>YOUR MEDICATIONS</h3><table class="med-table"><tr><th>Medication</th><th>Purpose</th><th>How to take</th></tr>${meds}</table><p style="color:red;font-weight:700">⚠ Do NOT stop these medications unless your doctor tells you.</p></div>
   <div class="p-section"><h3><span class="num">3</span>WARNING SIGNS</h3><div class="warning">Go to the ER immediately if you have:<ul><li>Chest pain</li><li>Shortness of breath</li><li>Bleeding or swelling at the wound site</li><li>Dizziness or fainting</li></ul></div></div></div>
-  <div><div class="p-section"><h3><span class="num">4</span>FOLLOW-UP</h3><p>📅 Appointment: ${formatDate(s.followup_date)} ${escapeHtml(s.followup_time||"")}</p><p>📍 Location: ${escapeHtml(s.followup_room)}</p><p>👨‍⚕️ Doctor: ${escapeHtml(s.followup_doctor)}</p></div>
+  <div class="patient-col right-col"><div class="p-section"><h3><span class="num">4</span>FOLLOW-UP</h3><p>📅 Appointment: ${formatDate(s.followup_date)} ${escapeHtml(s.followup_time||"")}</p><p>📍 Location: ${escapeHtml(s.followup_room)}</p><p>👨‍⚕️ Doctor: ${escapeHtml(s.followup_doctor)}</p></div>
   <div class="p-section"><h3><span class="num">5</span>DAILY INSTRUCTIONS</h3>${patientInstructionBlock(s)}</div></div></div>
   <div class="notes"><h3><span class="num">6</span>IMPORTANT NOTES</h3><ul><li>Bring this paper to your next visit.</li><li>Take your medications exactly as prescribed.</li><li>Do not miss your follow-up appointment.</li></ul><p>${nl(s.followup_note||"")}</p></div><div class="footer-strip">Clear information. Better understanding. Safer recovery.</div></div>`;
 }
@@ -944,7 +944,7 @@ function printPart(id){
       max-width:297mm!important;
       max-height:210mm!important;
       margin:0!important;
-      padding:4mm!important;
+      padding:3mm!important;
       background:#eef6ff!important;
       transform:none!important;
       overflow:hidden!important;
@@ -958,26 +958,32 @@ function printPart(id){
     .patient-sheet{
       width:100%!important;
       height:100%!important;
-      min-height:0!important;
-      max-height:none!important;
+      min-height:100%!important;
+      max-height:100%!important;
       overflow:hidden!important;
       border-radius:10px!important;
+      display:flex!important;
+      flex-direction:column!important;
       break-after:avoid!important;
       page-break-after:avoid!important;
       break-inside:avoid!important;
       page-break-inside:avoid!important;
     }
-    .patient-header{padding:8px 14px!important;font-size:14px!important;}
-    .patient-info{padding:6px 14px!important;font-size:10.5px!important;}
-    .patient-body{display:grid!important;grid-template-columns:1fr 1fr!important;gap:7px!important;padding:8px 12px!important;font-size:9.5px!important;line-height:1.12!important;}
-    .p-section{padding:5px 7px!important;}
-    .p-section h3{font-size:11px!important;margin:0 0 4px!important;}
-    .p-section p{margin:3px 0!important;}
-    .num{width:21px!important;height:21px!important;font-size:11px!important;margin-right:4px!important;}
-    .med-table td,.med-table th{padding:3px!important;font-size:8.5px!important;line-height:1.1!important;}
-    .warning{padding:5px!important;}
-    .notes{margin:5px 10px!important;padding:6px 8px!important;font-size:9.5px!important;}
-    .footer-strip{padding:7px 12px!important;font-size:10px!important;}
+    .patient-header{padding:9px 15px!important;font-size:15px!important;line-height:1.2!important;}
+    .patient-info{padding:7px 15px!important;font-size:11.5px!important;display:grid!important;grid-template-columns:1fr 1fr!important;gap:8px!important;text-align:center!important;}
+    .patient-body{flex:1 1 auto!important;display:grid!important;grid-template-columns:1.08fr 0.92fr!important;gap:10px!important;padding:10px 12px 8px!important;font-size:10.8px!important;line-height:1.28!important;align-items:stretch!important;}
+    .patient-col{display:flex!important;flex-direction:column!important;gap:8px!important;min-height:0!important;}
+    .p-section{padding:7px 8px!important;flex:1 1 auto!important;display:block!important;}
+    .p-section h3{display:flex!important;align-items:center!important;gap:6px!important;font-size:12.5px!important;margin:0 0 6px!important;line-height:1.2!important;}
+    .p-section p{margin:4px 0!important;}
+    .p-section ul,.notes ul{margin:5px 0 0 18px!important;padding-left:14px!important;}
+    .p-section li,.notes li,.notes p{font-size:10.7px!important;line-height:1.28!important;}
+    .num{width:24px!important;height:24px!important;font-size:12px!important;margin-right:0!important;flex:0 0 24px!important;}
+    .med-table td,.med-table th{padding:4px 5px!important;font-size:9.8px!important;line-height:1.2!important;}
+    .warning{padding:7px 8px!important;}
+    .notes{margin:0 12px 8px!important;padding:8px 10px!important;font-size:10.7px!important;line-height:1.28!important;}
+    .notes h3{display:flex!important;align-items:center!important;gap:6px!important;font-size:12.5px!important;margin:0 0 6px!important;line-height:1.2!important;}
+    .footer-strip{margin-top:auto!important;padding:8px 12px!important;font-size:10.5px!important;}
     @media print{
       html,body,main.patient-report,.patient-sheet{
         overflow:hidden!important;
