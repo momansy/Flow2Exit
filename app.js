@@ -922,8 +922,27 @@ function printPart(id){
   const html = source.innerHTML;
   const reportClass = id === "doctorReport" ? "doctor-report" : "patient-report";
   const title = id === "doctorReport" ? "Doctor Discharge Summary" : "Patient Discharge Instructions";
+  const isPatient = id === "patientReport";
+  const pageRule = isPatient
+    ? "@page{size:297mm 210mm;margin:5mm;} @media print{@page{size:297mm 210mm;margin:5mm;}}"
+    : "@page{size:A4;margin:12mm;} @media print{@page{size:A4;margin:12mm;}}";
+  const patientOnePageCss = isPatient ? `
+    html,body{width:297mm;min-height:210mm;}
+    main.patient-report{width:287mm;max-width:287mm;margin:0 auto;padding:0!important;background:#eef6ff!important;transform:none!important;}
+    .patient-sheet{width:287mm;min-height:187mm;max-height:190mm;overflow:hidden!important;border-radius:10px!important;}
+    .patient-header{padding:10px 16px!important;font-size:15px!important;}
+    .patient-info{padding:7px 16px!important;font-size:11px!important;}
+    .patient-body{display:grid!important;grid-template-columns:1fr 1fr!important;gap:8px!important;padding:10px 14px!important;font-size:10px!important;line-height:1.18!important;}
+    .p-section{padding:6px 8px!important;}
+    .p-section h3{font-size:12px!important;margin:0 0 5px!important;}
+    .num{width:23px!important;height:23px!important;font-size:12px!important;margin-right:5px!important;}
+    .med-table td,.med-table th{padding:4px!important;font-size:9px!important;}
+    .warning{padding:6px!important;}
+    .notes{margin:6px 12px!important;padding:7px 10px!important;font-size:10px!important;}
+    .footer-strip{padding:9px 14px!important;font-size:11px!important;}
+  ` : "";
   const printCss = `
-    @page{size:A4;margin:12mm;}
+    ${pageRule}
     *{box-sizing:border-box;}
     html,body{margin:0;padding:0;background:#fff;color:#0b1020;font-family:Arial,Helvetica,sans-serif;height:auto!important;overflow:visible!important;}
     body::-webkit-scrollbar,*::-webkit-scrollbar{display:none!important;width:0!important;height:0!important;}
@@ -949,6 +968,7 @@ function printPart(id){
     .warning{background:#ffecec;border:1px solid #f09a9a;border-radius:12px;padding:12px;}
     .notes{background:#eef6ff;border:1px solid #bdd0ea;margin:15px;padding:14px;border-radius:12px;break-inside:avoid;page-break-inside:avoid;}
     .footer-strip{background:#d9eaff;padding:16px;color:#123b78;font-weight:700;}
+    ${patientOnePageCss}
     @media print{html,body{overflow:visible!important;height:auto!important;} body::-webkit-scrollbar,*::-webkit-scrollbar{display:none!important;width:0!important;height:0!important;}}
   `;
   const w = window.open("", "_blank");
