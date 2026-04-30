@@ -642,10 +642,44 @@ function printPatientReport(){ printPart("patientReport"); }
 function downloadDoctorPDF(){ printDoctorReport(); }
 function downloadPatientPDF(){ printPatientReport(); }
 function printPart(id){
-  const html = document.getElementById(id).innerHTML;
+  const source = document.getElementById(id);
+  if(!source) return;
+  const html = source.innerHTML;
+  const reportClass = id === "doctorReport" ? "doctor-report" : "patient-report";
+  const title = id === "doctorReport" ? "Doctor Discharge Summary" : "Patient Discharge Instructions";
+  const printCss = `
+    @page{size:A4;margin:12mm;}
+    *{box-sizing:border-box;}
+    html,body{margin:0;padding:0;background:#fff;color:#0b1020;font-family:Arial,Helvetica,sans-serif;height:auto!important;overflow:visible!important;}
+    body::-webkit-scrollbar,*::-webkit-scrollbar{display:none!important;width:0!important;height:0!important;}
+    .doctor-report{font-family:'Times New Roman',serif;font-size:14px;line-height:1.22;background:#fff;color:#000;border:0!important;padding:0!important;height:auto!important;overflow:visible!important;}
+    .doctor-report h1{text-align:center;font-size:26px;margin:0 0 18px;letter-spacing:.5px;}
+    .doctor-report h3{text-align:center;margin:0 0 18px;font-size:16px;}
+    .doctor-table{width:100%;border-collapse:collapse;margin:8px 0 16px;}
+    .doctor-table td,.doctor-table th{border:1px solid #778397;padding:6px;vertical-align:top;}
+    .doctor-report p{margin:0 0 12px;}
+    .report-paragraph-list{margin:4px 0 12px 0;}
+    .report-paragraph-item{margin:0 0 10px 0;padding-bottom:8px;border-bottom:1px solid #e5e7eb;line-height:1.45;break-inside:avoid;page-break-inside:avoid;}
+    .report-paragraph-item:last-child{border-bottom:0;}
+    .patient-report{background:#eef6ff;padding:0;border-radius:0;color:#123b78;font-family:Arial,Helvetica,sans-serif;height:auto!important;overflow:visible!important;}
+    .patient-sheet{background:white;border:1px solid #bdd0ea;border-radius:14px;overflow:hidden;}
+    .patient-header{background:#0871c5;color:white;padding:18px 24px;display:flex;justify-content:space-between;font-weight:900;font-size:18px;}
+    .patient-info{padding:14px 24px;border-bottom:1px solid #bdd0ea;display:flex;justify-content:space-around;}
+    .patient-body{display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:20px;}
+    .p-section{border-bottom:1px solid #c8d6eb;padding:12px;break-inside:avoid;page-break-inside:avoid;}
+    .num{display:inline-grid;place-items:center;background:#0b4e98;color:white;border-radius:50%;width:34px;height:34px;margin-right:8px;font-weight:900;}
+    .med-table{width:100%;border-collapse:collapse;}
+    .med-table th{background:#0b4e98;color:white;}
+    .med-table td,.med-table th{border:1px solid #b6c4d8;padding:8px;}
+    .warning{background:#ffecec;border:1px solid #f09a9a;border-radius:12px;padding:12px;}
+    .notes{background:#eef6ff;border:1px solid #bdd0ea;margin:15px;padding:14px;border-radius:12px;break-inside:avoid;page-break-inside:avoid;}
+    .footer-strip{background:#d9eaff;padding:16px;color:#123b78;font-weight:700;}
+    @media print{html,body{overflow:visible!important;height:auto!important;} body::-webkit-scrollbar,*::-webkit-scrollbar{display:none!important;width:0!important;height:0!important;}}
+  `;
   const w = window.open("", "_blank");
-  w.document.write(`<html><head><title>Print</title><link rel="stylesheet" href="style.css"></head><body>${html}</body></html>`);
-  w.document.close(); w.focus(); setTimeout(()=>w.print(),300);
+  w.document.open();
+  w.document.write(`<!doctype html><html><head><meta charset="UTF-8"><title>${title}</title><style>${printCss}</style></head><body><main class="${reportClass}">${html}</main><script>window.onload=function(){setTimeout(function(){window.focus();window.print();},250)};<\/script></body></html>`);
+  w.document.close();
 }
 function escapeHtml(v){ return String(v ?? "").replace(/[&<>'"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[c])); }
 function nl(v){ return escapeHtml(v).replace(/\n/g,"<br>"); }

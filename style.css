@@ -332,3 +332,58 @@ input, textarea, select, button {
 .report-paragraph-item:last-child {
   border-bottom: 0;
 }
+
+/* Report PDF/print scrollbar fix
+   Keep the reports as normal document content, not inside an internal scroll box.
+   This prevents the browser from printing the gray scrollbar inside PDF pages. */
+.reports-page .report-card{
+  height:auto !important;
+  max-height:none !important;
+  overflow:visible !important;
+}
+.reports-page .doctor-report,
+.reports-page .patient-report{
+  height:auto !important;
+  max-height:none !important;
+  overflow:visible !important;
+}
+
+@media print{
+  @page{size:A4;margin:12mm;}
+  html,body{
+    zoom:100% !important;
+    height:auto !important;
+    max-height:none !important;
+    overflow:visible !important;
+    background:white !important;
+  }
+  body::-webkit-scrollbar,
+  .report-card::-webkit-scrollbar,
+  .doctor-report::-webkit-scrollbar,
+  .patient-report::-webkit-scrollbar{
+    display:none !important;
+    width:0 !important;
+    height:0 !important;
+  }
+  .topbar,.sidebar,.success,.card-title,.bottom-actions{
+    display:none !important;
+  }
+  .reports-page,.card,.report-card,.doctor-report,.patient-report,.patient-sheet{
+    height:auto !important;
+    max-height:none !important;
+    overflow:visible !important;
+    box-shadow:none !important;
+  }
+  .reports-page{padding:0 !important;}
+  .grid.two{display:block !important;}
+  .card{
+    border:0 !important;
+    padding:0 !important;
+    break-after:page;
+    page-break-after:always;
+  }
+  .card:last-child{
+    break-after:auto;
+    page-break-after:auto;
+  }
+}
