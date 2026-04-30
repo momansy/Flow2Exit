@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flow2Exit Builder</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body onload="requireLogin(); loadBuilder();">
+  <nav class="topbar fixed">
+    <div class="brand-row brand-click" onclick="location.href='dashboard.html'"><div class="heart">♥</div><h2>Cardiology Department</h2></div>
+    <input class="search" id="builderSearch" placeholder="Search patient by name, MRN, or bed" oninput="builderSearchHint()" />
+    <button onclick="saveDraft()">Save Draft</button>
+    <button class="primary" onclick="validateSummary()">Validate</button>
+    <button onclick="logout()">Logout</button><div class="doctor-pill">👨‍⚕️ <span class="doctor-name">Dr. Maya Singh</span></div>
+  </nav>
+
+  <div class="workspace">
+    <aside class="sidebar">
+      <div class="patient-mini">
+        <div class="avatar">👤</div>
+        <div><b id="sideName">New Patient</b><br><span id="sideMRN" class="muted">MRN:</span><br><span id="sideMeta" class="muted">Age: • Bed:</span></div>
+      </div>
+      <hr>
+      <h4>Problem-Oriented Timeline</h4>
+      <ul class="timeline">
+        <li><b>22 Mar 2026 – Arrival</b><br><span>Presented with chest pain, ST-elevation on ECG.</span></li>
+        <li><b>23 Mar 2026 – PCI</b><br><span>Primary PCI with drug-eluting stent.</span></li>
+        <li><b>24 Mar 2026 – ICU</b><br><span>Monitoring, started dual antiplatelet therapy.</span></li>
+      </ul>
+      <hr>
+      <h4>Section Progress</h4>
+      <label class="progress-check"><input type="checkbox" id="checkPatient"> <span>Patient Information</span></label>
+      <label class="progress-check"><input type="checkbox" id="checkDiagnosis"> <span>Diagnosis & Findings</span></label>
+      <label class="progress-check"><input type="checkbox" id="checkMeds"> <span>Medications</span></label>
+      <hr>
+      <button class="primary full" onclick="generateDraftText()">Generate Draft Summary</button>
+      <button class="full">Attach ECG</button>
+    </aside>
+
+    <main class="builder-main">
+      <section class="card wide">
+        <div class="card-title"><h2>Patient Information</h2><span class="muted">Record last updated: <span id="updatedAt">---</span></span></div>
+        <div class="form-grid five">
+          <label>Full name<input id="patient_name"></label>
+          <label>Medical Record No.<input id="mrn"></label>
+          <label>Age<input id="age"></label>
+          <label>Admission Date<input id="admission_date" type="date"></label>
+          <label>Discharge Date<input id="discharge_date" type="date"></label>
+          <label>Civil ID<input id="civil_id"></label>
+          <label>Contact<input id="contact"></label>
+          <label>Allergies<input id="allergies" placeholder="No known drug allergies"></label>
+          <label>Gender<input id="gender"></label>
+          <label>Bed<input id="bed"></label>
+        </div>
+      </section>
+
+      <section class="grid two">
+        <div class="card tall">
+          <h2>Core Information</h2>
+          <label>Admission reason<textarea id="admission_reason"></textarea></label>
+          <label>Final diagnosis<textarea id="final_diagnosis"></textarea></label>
+          <label>History of patient<textarea id="history_of_patient"></textarea></label>
+        </div>
+        <div class="card tall">
+          <h2>Hospital Course</h2>
+          <textarea id="hospital_course" class="large-text" placeholder="text here"></textarea>
+        </div>
+      </section>
+
+      <section class="grid two">
+        <div class="card">
+          <h2>Coronary Procedure</h2>
+          <div class="inline"><b>Access Site</b><label><input name="access_site" type="radio" value="Femoral"> Femoral</label><label><input name="access_site" type="radio" value="Radial"> Radial</label></div>
+          <div class="inline"><b>PCI</b><label><input id="procedure_done" type="checkbox"> Yes</label><label>Dr.<input id="procedure_doctor"></label><label>Date<input id="procedure_date" type="date"></label></div>
+          <label>Findings<textarea id="procedure_findings"></textarea></label>
+        </div>
+        <div class="card">
+          <h2>Investigations</h2>
+          <label>ECG<textarea id="ecg"></textarea></label>
+          <label>Lab<textarea id="lab"></textarea></label>
+          <label>Echo<textarea id="echo"></textarea></label>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-title"><h2>Home Medications</h2><button onclick="addHomeMedication()">Add</button></div>
+        <div id="homeMedications" class="rows"></div>
+      </section>
+
+      <section class="card">
+        <div class="card-title"><h2>Discharge Medications</h2><button onclick="addDischargeMedication()">Add</button></div>
+        <div id="dischargeMedications" class="rows"></div>
+      </section>
+
+      <section class="grid two">
+        <div class="card">
+          <h2>Advanced</h2>
+          <label>Pending Results & investigations<textarea id="pending_results"></textarea></label>
+          <label>Cognitive Status<select id="cognitive_status"><option></option><option>Alert & oriented</option><option>Confused</option><option>Drowsy</option><option>Disoriented</option></select></label>
+          <label>Functional Status<select id="functional_status"><option></option><option>Independent</option><option>Needs minimal assistance</option><option>Needs full assistance</option><option>Bed-bound</option></select></label>
+          <label class="check-line caregiver-check"><input type="checkbox" id="needs_caregiver"> <span>Needs caregiver at home</span></label>
+        </div>
+        <div class="card">
+          <h2>Follow-Up</h2>
+          <label>Date<input id="followup_date" type="date"></label>
+          <label>Time<input id="followup_time" type="time"></label>
+          <label>Dr.<input id="followup_doctor"></label>
+          <label>Room<input id="followup_room"></label>
+          <label>Optional text<textarea id="followup_note"></textarea></label>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Patient Instructions & Education</h2>
+        <label>Instruction Type<select id="instruction_type" onchange="autoInstruction()"><option></option><option>General Discharge Instructions</option><option>Medication Instructions</option><option>Radial Access Care Instructions</option><option>Femoral Access Care Instructions</option><option>Post-Catheterization Care</option><option>Lifestyle & Activity Instructions</option><option>Diet Instructions</option><option>Warning Signs</option><option>Follow-up Instructions</option></select></label>
+        <textarea id="patient_instruction_text" class="large-text"></textarea>
+        <div class="instruction-checks">
+          <label class="check-line"><input type="checkbox" id="explained_patient"> <span>Instructions explained to patient</span></label>
+          <label class="check-line"><input type="checkbox" id="explained_caregiver"> <span>Instructions explained to caregiver</span></label>
+        </div>
+      </section>
+
+      <div class="bottom-actions">
+        <button onclick="location.href='dashboard.html'">Back</button>
+        <button onclick="saveDraft()">Save Draft</button>
+        <button class="primary" onclick="generateReports()">Generate Reports</button>
+      </div>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

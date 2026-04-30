@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flow2Exit Reports</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body onload="requireLogin(); renderReports();">
+  <nav class="topbar fixed">
+    <div class="brand-row"><div class="heart">♥</div><h2>Cardiology Department</h2></div>
+    <input class="search" placeholder="Search patient by name, MRN, or bed" />
+    <button onclick="location.href='builder.html'">Back to Edit</button>
+    <button class="primary" onclick="location.href='dashboard.html'">Done</button>
+  </nav>
+  <main class="reports-page">
+    <div class="success"><div class="check">✓</div><div><h2>Discharge Summary Generated Successfully!</h2><p>Two reports are ready: doctor version and patient-friendly version.</p></div></div>
+    <section class="grid two">
+      <div class="card report-card">
+        <div class="card-title"><h2>Doctor Discharge Summary</h2><div><button onclick="printDoctorReport()">Print Doctor</button><button onclick="downloadDoctorPDF()">Save Doctor PDF</button></div></div>
+        <div id="doctorReport" class="doctor-report"></div>
+      </div>
+      <div class="card report-card">
+        <div class="card-title"><h2>Patient Discharge Instructions</h2><div><button onclick="printPatientReport()">Print Patient</button><button onclick="downloadPatientPDF()">Save Patient PDF</button></div></div>
+        <div id="patientReport" class="patient-report"></div>
+      </div>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

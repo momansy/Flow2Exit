@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flow2Exit Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body onload="requireLogin(); renderDoctorName(); renderDashboardDrafts();">
+  <nav class="topbar">
+    <div class="brand-row"><div class="logo">F2</div><h2>Flow2Exit</h2></div>
+    <input class="search" id="patientSearch" placeholder="Search patient by name, MRN, or bed" oninput="searchPatientCards()" />
+    <button class="primary" onclick="createNewSummary()">New Summary</button>
+    <button onclick="logout()">Logout</button><div class="doctor-pill">👨‍⚕️ <span class="doctor-name">Dr. Maya Singh</span></div>
+  </nav>
+
+  <main class="page">
+    <h1>Cardiology Discharge Dashboard</h1>
+    <section class="grid three">
+      <div class="card patient-card" data-search="Robert Alvarez MRN-549219 C-12">
+        <h2>Patient: Robert Alvarez</h2>
+        <p class="muted">MRN: MRN-549219 | Bed: C-12 | Age: 58</p>
+        <p>Recent PCI patient. Draft discharge summary ready to complete.</p>
+        <button class="primary" onclick="openExistingPatient()">Open Builder</button>
+      </div>
+      <div class="card">
+        <h2>Drafts</h2>
+        <p class="muted">Local drafts appear here after saving.</p>
+        <div id="draftList"></div>
+        <button onclick="renderDashboardDrafts()">Refresh Drafts</button>
+      </div>
+      <div class="card">
+        <h2>Workflow</h2>
+        <p>1 Fill clinical form</p>
+        <p>2 Validate required fields</p>
+        <p>3 Generate doctor + patient reports</p>
+      </div>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+{
+  "name": "flow2exit-google-sheets-final",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "netlify dev",
+    "build": "echo \"Static build ready\""
+  },
+  "dependencies": {
+    "googleapis": "^144.0.0"
+  }
+}
