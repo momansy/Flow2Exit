@@ -913,9 +913,128 @@ async function copyDoctorReport(){
   }
 }
 function printDoctorReport(){ printPart("doctorReport"); }
-function printPatientReport(){ printPart("patientReport"); }
+function printPatientReport(){ printPatientLandscapePDF(); }
 function downloadDoctorPDF(){ printDoctorReport(); }
-function downloadPatientPDF(){ printPatientReport(); }
+function downloadPatientPDF(){ savePatientLandscapePDF(); }
+
+function loadExternalScript(src){
+  return new Promise((resolve, reject)=>{
+    if(document.querySelector('script[src="' + src + '"]')) return resolve();
+    const script = document.createElement("script");
+    script.src = src;
+    script.onload = resolve;
+    script.onerror = () => reject(new Error("Could not load " + src));
+    document.head.appendChild(script);
+  });
+}
+
+async function ensurePdfLibraries(){
+  if(!window.html2canvas){
+    await loadExternalScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js");
+  }
+  if(!window.jspdf || !window.jspdf.jsPDF){
+    await loadExternalScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
+  }
+}
+
+function reportFileName(prefix){
+  const s = JSON.parse(localStorage.getItem("currentSummary") || "{}");
+  const patient = String(s.patient_name || "Patient").replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "");
+  const mrn = String(s.mrn || "NoMRN").replace(/[^a-z0-9]+/gi, "_");
+  return `${prefix}_${patient}_${mrn}.pdf`;
+}
+
+async function createPatientLandscapePDF(){
+  const source = document.getElementById("patientReport");
+  if(!source){ alert("Patient report is not available."); return null; }
+  await ensurePdfLibraries();
+
+  const holder = document.createElement("div");
+  holder.style.position = "fixed";
+  holder.style.left = "-12000px";
+  holder.style.top = "0";
+  holder.style.width = "1123px";
+  holder.style.background = "#eef6ff";
+  holder.style.padding = "0";
+  holder.style.zIndex = "-1";
+
+  const clone = source.cloneNode(true);
+  clone.style.width = "1123px";
+  clone.style.maxWidth = "1123px";
+  clone.style.minHeight = "794px";
+  clone.style.padding = "0";
+  clone.style.margin = "0";
+  clone.style.borderRadius = "0";
+  clone.style.background = "#eef6ff";
+  clone.style.overflow = "visible";
+
+  const sheet = clone.querySelector(".patient-sheet");
+  if(sheet){
+    sheet.style.width = "1123px";
+    sheet.style.minHeight = "760px";
+    sheet.style.maxHeight = "none";
+    sheet.style.overflow = "hidden";
+    sheet.style.borderRadius = "14px";
+  }
+
+  holder.appendChild(clone);
+  document.body.appendChild(holder);
+
+  try{
+    const canvas = await window.html2canvas(clone, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: "#eef6ff",
+      windowWidth: 1123,
+      scrollX: 0,
+      scrollY: 0
+    });
+
+    const jsPDF = window.jspdf.jsPDF;
+    const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    const pageW = 297;
+    const pageH = 210;
+    const imgData = canvas.toDataURL("image/jpeg", 0.95);
+    let imgW = pageW;
+    let imgH = canvas.height * imgW / canvas.width;
+    if(imgH > pageH){
+      imgH = pageH;
+      imgW = canvas.width * imgH / canvas.height;
+    }
+    const x = (pageW - imgW) / 2;
+    const y = (pageH - imgH) / 2;
+    pdf.addImage(imgData, "JPEG", x, y, imgW, imgH);
+    return pdf;
+  } finally {
+    holder.remove();
+  }
+}
+
+async function savePatientLandscapePDF(){
+  try{
+    const pdf = await createPatientLandscapePDF();
+    if(pdf) pdf.save(reportFileName("Patient_Discharge_Instructions_Landscape"));
+  }catch(err){
+    alert("Could not create patient landscape PDF: " + err.message);
+  }
+}
+
+async function printPatientLandscapePDF(){
+  try{
+    const pdf = await createPatientLandscapePDF();
+    if(!pdf) return;
+    pdf.autoPrint();
+    const url = pdf.output("bloburl");
+    const w = window.open(url, "_blank");
+    if(!w){
+      pdf.save(reportFileName("Patient_Discharge_Instructions_Landscape"));
+      alert("Popup was blocked. The landscape PDF was downloaded instead. Open it and print it.");
+    }
+  }catch(err){
+    alert("Could not print patient landscape PDF: " + err.message);
+  }
+}
+
 function printPart(id){
   const source = document.getElementById(id);
   if(!source) return;
