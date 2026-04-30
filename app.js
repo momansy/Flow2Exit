@@ -238,6 +238,27 @@ function login(){
 function logout(){ localStorage.removeItem("flow2exit_logged_in"); location.href="index.html"; }
 function requireLogin(){ if(localStorage.getItem("flow2exit_logged_in")!=="yes") location.href="index.html"; }
 function uid(){ return "summary-" + Date.now(); }
+function normalizeMrn(value){
+  let v = String(value || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+  if(!v) return "";
+  if(/^\d+$/.test(v)) v = v.replace(/^0+/, "") || "0";
+  return v;
+}
+function patientKey(obj){
+  const mrnKey = normalizeMrn(obj?.mrn);
+  if(mrnKey) return "mrn:" + mrnKey;
+  const id = String(obj?.patient_id || "").trim().toLowerCase();
+  if(id) return "id:" + id;
+  const name = String(obj?.patient_name || "").trim().toLowerCase();
+  return name ? "name:" + name : "summary:" + String(obj?.summary_id || uid());
+}
+function samePatient(a, b){
+  const am = normalizeMrn(a?.mrn);
+  const bm = normalizeMrn(b?.mrn);
+  if(am && bm) return am === bm;
+  if(a?.patient_id && b?.patient_id) return String(a.patient_id) === String(b.patient_id);
+  return false;
+}
 
 function emptySummary(){
   return {
@@ -255,25 +276,27 @@ function createNewSummary(){
 }
 
 function openExistingPatient(){
-  localStorage.setItem("currentSummary", JSON.stringify({...DEMO_PATIENT, summary_id: uid()}));
+  localStorage.setItem("currentSummary", JSON.stringify({...DEMO_PATIENT}));
   location.href = "builder.html";
 }
 
 function summariesToPatients(summaries){
   const map = new Map();
   (summaries || []).forEach(s=>{
-    const key = String(s.mrn || s.patient_id || s.summary_id || "").trim().toLowerCase();
+    const key = patientKey(s);
     if(!key) return;
+    const previous = map.get(key) || {};
     map.set(key, {
-      patient_id: s.patient_id || s.mrn || s.summary_id,
-      patient_name: s.patient_name || "Untitled Patient",
-      mrn: s.mrn || "",
-      age: s.age || "",
-      gender: s.gender || "",
-      bed: s.bed || "",
-      contact: s.contact || "",
-      updated_at: s.updated_at || "",
-      summary_id: s.summary_id || ""
+      ...previous,
+      patient_id: s.patient_id || s.mrn || s.summary_id || previous.patient_id || "",
+      patient_name: s.patient_name || previous.patient_name || "Untitled Patient",
+      mrn: s.mrn || previous.mrn || "",
+      age: s.age || previous.age || "",
+      gender: s.gender || previous.gender || "",
+      bed: s.bed || previous.bed || "",
+      contact: s.contact || previous.contact || "",
+      updated_at: s.updated_at || previous.updated_at || "",
+      summary_id: s.summary_id || previous.summary_id || ""
     });
   });
   return [...map.values()];
@@ -296,10 +319,10 @@ async function renderDashboardPatients(){
   const drafts = await loadSummariesFromSheets();
   const sheetPatients = await loadPatientsFromSheets();
   const patientMap = new Map();
-  patientMap.set("demo", {...DEMO_PATIENT, patient_id:"demo-robert-alvarez", source:"demo"});
-  summariesToPatients(drafts).forEach(p=>patientMap.set(String(p.mrn || p.patient_id).toLowerCase(), p));
-  (sheetPatients || []).forEach(p=>patientMap.set(String(p.mrn || p.patient_id || p.patient_name).toLowerCase(), p));
-  const patients = [...patientMap.values()];
+  patientMap.set(patientKey(DEMO_PATIENT), {...DEMO_PATIENT, patient_id:"demo-robert-alvarez", source:"demo"});
+  summariesToPatients(drafts).forEach(p=>patientMap.set(patientKey(p), p));
+  (sheetPatients || []).forEach(p=>patientMap.set(patientKey(p), {...(patientMap.get(patientKey(p)) || {}), ...p}));
+  const patients = [...patientMap.values()].filter(p => p.patient_name || p.mrn);
   localStorage.setItem("savedPatients", JSON.stringify(patients));
   box.innerHTML = patients.map((p,i)=>`
     <div class="patient-card mini-patient-card" data-search="${escapeAttr([p.patient_name,p.mrn,p.bed,p.age,p.gender].join(' '))}">
@@ -403,7 +426,7 @@ async function saveDraft(){
   s.doctor_name = DOCTOR_PROFILE.name;
   if(!s.summary_id) s.summary_id = uid();
   const drafts = JSON.parse(localStorage.getItem("savedDrafts") || "[]");
-  const index = drafts.findIndex(d=>d.summary_id === s.summary_id || (d.mrn && s.mrn && d.mrn === s.mrn));
+  const index = drafts.findIndex(d=>d.summary_id === s.summary_id || samePatient(d, s));
   if(index >= 0) drafts[index] = s; else drafts.unshift(s);
   localStorage.setItem("savedDrafts", JSON.stringify(drafts));
   localStorage.setItem("savedPatients", JSON.stringify(summariesToPatients(drafts)));
@@ -432,12 +455,11 @@ function generateDraftText(){
   document.getElementById("hospital_course").value = s.hospital_course || `Patient was admitted due to ${s.admission_reason || "the presenting complaint"}. Diagnosis and treatment were completed during admission. Patient is planned for discharge in stable condition.`;
 }
 async function generateReports(){
+  // Generate reports from the current screen data only.
+  // This must NOT create a new Google Sheets row. Saving to the database happens only when the doctor clicks Save Draft.
   const s = saveCurrent();
   s.doctor_name = DOCTOR_PROFILE.name;
-  const out = await saveSummaryToSheets(s);
-  if(!out.success){
-    console.warn("Report generated but Google Sheets save failed:", out.error);
-  }
+  localStorage.setItem("currentSummary", JSON.stringify(s));
   location.href="reports.html";
 }
 
