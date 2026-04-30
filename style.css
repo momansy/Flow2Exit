@@ -318,3 +318,17 @@ input, textarea, select, button {
 .mini-patient-card button{margin-top:12px;}
 .draft-item{border-bottom:1px solid #e9eef6;padding:10px 0 14px;}
 .draft-item:last-child{border-bottom:0;}
+
+/* Doctor report paragraph layout */
+.report-paragraph-list {
+  margin: 4px 0 12px 0;
+}
+.report-paragraph-item {
+  margin: 0 0 10px 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e5e7eb;
+  line-height: 1.45;
+}
+.report-paragraph-item:last-child {
+  border-bottom: 0;
+}

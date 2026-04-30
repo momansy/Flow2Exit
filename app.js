@@ -534,18 +534,85 @@ function renderReports(){
 }
 function formatDate(d){ if(!d) return ""; const x=new Date(d); return isNaN(x)?d:x.toLocaleDateString("en-GB"); }
 function doctorReportHtml(s){
-  const meds=(s.discharge_medications||[]).map(m=>`<tr><td>${escapeHtml(m.medication)}</td><td>${escapeHtml(m.purpose)}</td><td>${m.bbf?"✓":""}</td><td>${m.abf?"✓":""}</td><td>${m.bl?"✓":""}</td><td>${m.al?"✓":""}</td><td>${m.bd?"✓":""}</td><td>${m.ad?"✓":""}</td><td>${m.prn?"✓":""}</td><td>${m.hs?"✓":""}</td><td>${escapeHtml(m.note || m.timing || "")}</td><td>${formatDate(m.start_date)}</td><td>${formatDate(m.end_date)}</td></tr>`).join("");
-  const home=(s.home_medications||[]).map(m=>{
-    const action = m.action || (m.continue ? "Continue" : m.stop ? "Stop" : m.change ? "Change" : "");
-    return `<li>${escapeHtml(m.name)} ${escapeHtml(action)} ${escapeHtml(m.reason||"")}</li>`;
-  }).join("");
+  const safe = v => escapeHtml(v || "");
+  const hasValue = v => String(v ?? "").trim() !== "";
+  const cap = v => hasValue(v) ? String(v).charAt(0).toUpperCase() + String(v).slice(1) : "";
+  const line = (label, value) => hasValue(value) ? `<p><b>${label}:</b><br>${nl(value)}</p>` : "";
+  const inlineLine = (label, value) => hasValue(value) ? `<b>${label}:</b> ${escapeHtml(value)}` : "";
+
+  const procedureLines = [];
+  if(hasValue(s.access_site)) procedureLines.push(inlineLine("Access Site", s.access_site));
+  const pciParts = [];
+  if(s.procedure_done) pciParts.push("Yes");
+  if(hasValue(s.procedure_doctor)) pciParts.push(`Dr.: ${escapeHtml(s.procedure_doctor)}`);
+  if(hasValue(s.procedure_date)) pciParts.push(`Date: ${formatDate(s.procedure_date)}`);
+  if(pciParts.length) procedureLines.push(`<b>PCI:</b> ${pciParts.join(", ")}`);
+  if(hasValue(s.procedure_findings)) procedureLines.push(`<b>Finding:</b> ${nl(s.procedure_findings)}`);
+  const procedureHtml = procedureLines.length
+    ? `<p><b>Coronary Procedure:</b><br>${procedureLines.join("<br>")}</p>`
+    : "";
+
+  const homeItems = (s.home_medications || [])
+    .filter(m => hasValue(m.name) || hasValue(m.action) || hasValue(m.reason))
+    .map((m, i) => {
+      const action = cap(m.action || (m.continue ? "continue" : m.stop ? "stop" : m.change ? "change" : ""));
+      let parts = [`${i + 1}- ${safe(m.name)}`];
+      if(hasValue(action)) parts.push(`(${escapeHtml(action)})`);
+      if(hasValue(m.reason)) parts.push(`Reason: ${safe(m.reason)}`);
+      return `<div class="report-paragraph-item">${parts.join(" ")}</div>`;
+    }).join("");
+  const homeHtml = homeItems ? `<p><b>Home Medications:</b></p><div class="report-paragraph-list">${homeItems}</div>` : "";
+
+  const dischargeItems = (s.discharge_medications || [])
+    .filter(m => hasValue(m.medication) || hasValue(m.purpose) || hasValue(m.note) || hasValue(m.timing) || hasValue(timingAbbrev(m)) || hasValue(m.start_date) || hasValue(m.end_date))
+    .map((m, i) => {
+      const rows = [];
+      rows.push(`<b>${i + 1}- ${safe(m.medication || "Medication")}</b>`);
+      const time = timingAbbrev(m);
+      if(hasValue(time)) rows.push(`<b>Time:</b> ${escapeHtml(time)}`);
+      if(hasValue(m.purpose)) rows.push(`<b>Purpose:</b> ${safe(m.purpose)}`);
+      if(hasValue(m.note || m.timing)) rows.push(`<b>Note / How to take:</b> ${safe(m.note || m.timing)}`);
+      if(hasValue(m.start_date)) rows.push(`<b>Start Date:</b> ${formatDate(m.start_date)}`);
+      if(hasValue(m.end_date)) rows.push(`<b>End Date:</b> ${formatDate(m.end_date)}`);
+      return `<div class="report-paragraph-item">${rows.join("<br>")}</div>`;
+    }).join("");
+  const dischargeHtml = dischargeItems ? `<p><b>Discharge Medications:</b></p><div class="report-paragraph-list">${dischargeItems}</div>` : "";
+
+  const investigationLines = [
+    hasValue(s.ecg) ? `ECG: ${nl(s.ecg)}` : "",
+    hasValue(s.lab) ? `Lab: ${nl(s.lab)}` : "",
+    hasValue(s.echo) ? `Echo: ${nl(s.echo)}` : ""
+  ].filter(Boolean).join("<br>");
+  const investigationHtml = investigationLines ? `<p><b>Hospital Investigation:</b><br>${investigationLines}</p>` : "";
+
+  const opdParts = [];
+  if(hasValue(s.followup_doctor)) opdParts.push(`Doctor Name: ${safe(s.followup_doctor)}`);
+  if(hasValue(s.followup_date)) opdParts.push(`Date: ${formatDate(s.followup_date)}`);
+  if(hasValue(s.followup_time)) opdParts.push(`Time: ${safe(s.followup_time)}`);
+  if(hasValue(s.followup_room)) opdParts.push(`Room/Location: ${safe(s.followup_room)}`);
+  if(hasValue(s.followup_note)) opdParts.push(`Note: ${nl(s.followup_note)}`);
+  const opdHtml = opdParts.length ? `<p><b>OPD Appointment:</b><br>${opdParts.join("<br>")}</p>` : "";
+
   return `<h1>DISCHARGE SUMMARY</h1><h3 style="text-align:center">JABER AL AHMAD HOSPITAL - CARDIOLOGY DEPARTMENT</h3>
-  <table class="doctor-table"><tr><td><b>Patient Name:</b> ${escapeHtml(s.patient_name)}</td><td><b>Age / Gender:</b> ${escapeHtml(s.age)} / ${escapeHtml(s.gender)}</td></tr><tr><td><b>MRN:</b> ${escapeHtml(s.mrn)}</td><td><b>Bed:</b> ${escapeHtml(s.bed)}</td></tr><tr><td><b>Admission Date:</b> ${formatDate(s.admission_date)}</td><td><b>Discharge Date:</b> ${formatDate(s.discharge_date)}</td></tr></table>
-  <p><b>Final Diagnosis:</b><br>${nl(s.final_diagnosis)}</p><p><b>History of Patient:</b><br>${nl(s.history_of_patient)}</p><p><b>Hospital Course:</b><br>${nl(s.hospital_course)}</p>
-  <p><b>Hospital Investigation:</b><br>ECG: ${nl(s.ecg)}<br>Lab: ${nl(s.lab)}<br>Echo: ${nl(s.echo)}</p>
-  <p><b>Hospital Procedure:</b></p><table class="doctor-table"><tr><th>Doctor Name</th><th>Site</th><th>Finding</th></tr><tr><td>${escapeHtml(s.procedure_doctor)}</td><td>${escapeHtml(s.access_site)}</td><td>${escapeHtml(s.procedure_findings)}</td></tr></table>
-  <p><b>Home Medications:</b></p><ul>${home}</ul><p><b>Discharge Medications:</b></p><table class="doctor-table"><tr><th>Medication</th><th>Purpose</th><th>BBF</th><th>ABF</th><th>BL</th><th>AL</th><th>BD</th><th>AD</th><th>PRN</th><th>HS</th><th>Note</th><th>Start Date</th><th>End Date</th></tr>${meds}</table>
-  <p><b>Discharge Plan:</b><br>${nl(s.patient_instruction_text)}</p><p><b>Pending Labs & Investigations:</b><br>${nl(s.pending_results)}</p><p><b>OPD Appointment:</b><br>Doctor Name: ${escapeHtml(s.followup_doctor)} &nbsp;&nbsp; Date: ${formatDate(s.followup_date)} &nbsp;&nbsp; Time: ${escapeHtml(s.followup_time)}</p>`;
+  <table class="doctor-table"><tr><td><b>Patient Name:</b> ${safe(s.patient_name)}</td><td><b>Age / Gender:</b> ${safe(s.age)}${hasValue(s.gender)?" / "+safe(s.gender):""}</td></tr><tr><td><b>MRN:</b> ${safe(s.mrn)}</td><td><b>Bed:</b> ${safe(s.bed)}</td></tr><tr><td><b>Admission Date:</b> ${formatDate(s.admission_date)}</td><td><b>Discharge Date:</b> ${formatDate(s.discharge_date)}</td></tr></table>
+  ${line("Final Diagnosis", s.final_diagnosis)}${line("History of Patient", s.history_of_patient)}${line("Hospital Course", s.hospital_course)}
+  ${investigationHtml}
+  ${procedureHtml}
+  ${homeHtml}
+  ${dischargeHtml}
+  ${line("Discharge Plan", s.patient_instruction_text)}${line("Pending Labs & Investigations", s.pending_results)}${opdHtml}`;
+}
+function timingAbbrev(m){
+  const labels = [];
+  if(m.bbf) labels.push("BBF");
+  if(m.abf) labels.push("ABF");
+  if(m.bl) labels.push("BL");
+  if(m.al) labels.push("AL");
+  if(m.bd) labels.push("BD");
+  if(m.ad) labels.push("AD");
+  if(m.prn) labels.push("PRN");
+  if(m.hs) labels.push("HS");
+  return labels.join(" / ");
 }
 function timingLabel(m){
   const labels = [];
