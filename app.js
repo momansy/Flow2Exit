@@ -2,10 +2,47 @@ const DOCTOR_PROFILE = { name: "Dr. Maya Singh", email: "doctor@flow2exit.com", 
 const API_BASE = "/.netlify/functions";
 async function apiGet(path){ const res = await fetch(API_BASE + path); if(!res.ok) throw new Error(await res.text()); return res.json(); }
 async function apiPost(path, data){ const res = await fetch(API_BASE + path, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(data) }); if(!res.ok) throw new Error(await res.text()); return res.json(); }
-async function syncMedicinesFromSheets(){ try{ const out = await apiGet("/get-medicines"); if(out.success && Array.isArray(out.medicines) && out.medicines.length){ saveMedicineDatabase(out.medicines); return out.medicines; } }catch(e){ console.warn("Google Sheets medicines unavailable; using local database.", e.message); } return getMedicineDatabase(); }
-async function saveSummaryToSheets(summary){ try { return await apiPost("/save-summary", summary); } catch(e){ console.warn("Google Sheets save unavailable; kept local draft only.", e.message); return { success:false, error:e.message }; } }
-async function loadSummariesFromSheets(){ try{ const out = await apiGet("/get-summaries"); if(out.success && Array.isArray(out.summaries)){ localStorage.setItem("savedDrafts", JSON.stringify(out.summaries)); return out.summaries; } }catch(e){ console.warn("Google Sheets drafts unavailable; using local drafts.", e.message); } return JSON.parse(localStorage.getItem("savedDrafts") || "[]"); }
-async function addMedicineToSheets(medicine){ try { return await apiPost("/add-medicine", medicine); } catch(e){ console.warn("Google Sheets medicine add unavailable; stored locally only.", e.message); return { success:false, error:e.message }; } }
+async function syncMedicinesFromSheets(){
+  try{
+    const out = await apiGet("/get-medicines");
+    if(out.success && Array.isArray(out.medicines) && out.medicines.length){
+      saveMedicineDatabase(out.medicines);
+      return out.medicines;
+    }
+  }catch(e){ console.warn("Google Sheets medicines unavailable; using local database.", e.message); }
+  return getMedicineDatabase();
+}
+async function saveSummaryToSheets(summary){
+  try { return await apiPost("/save-summary", summary); }
+  catch(e){ console.warn("Google Sheets save unavailable; kept local draft only.", e.message); return { success:false, error:e.message }; }
+}
+async function loadSummariesFromSheets(){
+  try{
+    const out = await apiGet("/get-summaries");
+    if(out.success && Array.isArray(out.summaries)){
+      localStorage.setItem("savedDrafts", JSON.stringify(out.summaries));
+      return out.summaries;
+    }
+  }catch(e){ console.warn("Google Sheets drafts unavailable; using local drafts.", e.message); }
+  return JSON.parse(localStorage.getItem("savedDrafts") || "[]");
+}
+async function loadPatientsFromSheets(){
+  try{
+    const out = await apiGet("/get-patients");
+    if(out.success && Array.isArray(out.patients)){
+      localStorage.setItem("savedPatients", JSON.stringify(out.patients));
+      return out.patients;
+    }
+  }catch(e){ console.warn("Google Sheets patients unavailable; using local patients.", e.message); }
+  const localPatients = JSON.parse(localStorage.getItem("savedPatients") || "[]");
+  if(localPatients.length) return localPatients;
+  const drafts = JSON.parse(localStorage.getItem("savedDrafts") || "[]");
+  return summariesToPatients(drafts);
+}
+async function addMedicineToSheets(medicine){
+  try { return await apiPost("/add-medicine", medicine); }
+  catch(e){ console.warn("Google Sheets medicine add unavailable; stored locally only.", e.message); return { success:false, error:e.message }; }
+}
 function renderDoctorName(){ document.querySelectorAll(".doctor-name, #doctorNameTop").forEach(el => el.textContent = DOCTOR_PROFILE.name); }
 
 const DEFAULT_MEDICINE_DATABASE = [
@@ -202,8 +239,8 @@ function logout(){ localStorage.removeItem("flow2exit_logged_in"); location.href
 function requireLogin(){ if(localStorage.getItem("flow2exit_logged_in")!=="yes") location.href="index.html"; }
 function uid(){ return "summary-" + Date.now(); }
 
-function createNewSummary(){
-  const empty = {
+function emptySummary(){
+  return {
     summary_id: uid(), status:"new", patient_name:"", mrn:"", age:"", gender:"", bed:"", civil_id:"", contact:"", allergies:"",
     admission_date:"", discharge_date:"", admission_reason:"", final_diagnosis:"", history_of_patient:"", hospital_course:"",
     ecg:"", lab:"", echo:"", procedure_done:false, access_site:"", procedure_doctor:"", procedure_date:"", procedure_findings:"",
@@ -211,7 +248,9 @@ function createNewSummary(){
     instruction_type:"", patient_instruction_text:"", explained_patient:false, explained_caregiver:false,
     followup_date:"", followup_time:"", followup_doctor:"", followup_room:"", followup_note:""
   };
-  localStorage.setItem("currentSummary", JSON.stringify(empty));
+}
+function createNewSummary(){
+  localStorage.setItem("currentSummary", JSON.stringify(emptySummary()));
   location.href = "builder.html";
 }
 
@@ -220,19 +259,74 @@ function openExistingPatient(){
   location.href = "builder.html";
 }
 
+function summariesToPatients(summaries){
+  const map = new Map();
+  (summaries || []).forEach(s=>{
+    const key = String(s.mrn || s.patient_id || s.summary_id || "").trim().toLowerCase();
+    if(!key) return;
+    map.set(key, {
+      patient_id: s.patient_id || s.mrn || s.summary_id,
+      patient_name: s.patient_name || "Untitled Patient",
+      mrn: s.mrn || "",
+      age: s.age || "",
+      gender: s.gender || "",
+      bed: s.bed || "",
+      contact: s.contact || "",
+      updated_at: s.updated_at || "",
+      summary_id: s.summary_id || ""
+    });
+  });
+  return [...map.values()];
+}
 function searchPatientCards(){
-  const q = document.getElementById("patientSearch").value.toLowerCase();
-  document.querySelectorAll(".patient-card").forEach(card=>{
-    card.style.display = card.dataset.search.toLowerCase().includes(q) ? "block" : "none";
+  const q = (document.getElementById("patientSearch")?.value || "").toLowerCase();
+  document.querySelectorAll(".patient-card, .draft-item").forEach(card=>{
+    const text = (card.dataset.search || card.textContent || "").toLowerCase();
+    card.style.display = text.includes(q) ? "block" : "none";
   });
 }
-
+async function initDashboard(){
+  renderDoctorName();
+  await renderDashboardPatients();
+  await renderDashboardDrafts();
+}
+async function renderDashboardPatients(){
+  const box = document.getElementById("patientList"); if(!box) return;
+  box.innerHTML = "<p class='muted'>Loading patients...</p>";
+  const drafts = await loadSummariesFromSheets();
+  const sheetPatients = await loadPatientsFromSheets();
+  const patientMap = new Map();
+  patientMap.set("demo", {...DEMO_PATIENT, patient_id:"demo-robert-alvarez", source:"demo"});
+  summariesToPatients(drafts).forEach(p=>patientMap.set(String(p.mrn || p.patient_id).toLowerCase(), p));
+  (sheetPatients || []).forEach(p=>patientMap.set(String(p.mrn || p.patient_id || p.patient_name).toLowerCase(), p));
+  const patients = [...patientMap.values()];
+  localStorage.setItem("savedPatients", JSON.stringify(patients));
+  box.innerHTML = patients.map((p,i)=>`
+    <div class="patient-card mini-patient-card" data-search="${escapeAttr([p.patient_name,p.mrn,p.bed,p.age,p.gender].join(' '))}">
+      <div><b>Patient: ${escapeHtml(p.patient_name || "Untitled Patient")}</b></div>
+      <div class="muted">MRN: ${escapeHtml(p.mrn || "No MRN")} | Bed: ${escapeHtml(p.bed || "-")} | Age: ${escapeHtml(p.age || "-")}</div>
+      <button class="primary" onclick="openPatient(${i})">Open Builder</button>
+    </div>`).join("");
+  searchPatientCards();
+}
+function openPatient(i){
+  const patients = JSON.parse(localStorage.getItem("savedPatients") || "[]");
+  const p = patients[i];
+  if(!p) return;
+  if(p.source === "demo" || p.patient_id === "demo-robert-alvarez") return openExistingPatient();
+  const drafts = JSON.parse(localStorage.getItem("savedDrafts") || "[]");
+  const draft = drafts.find(d => (d.summary_id && d.summary_id === p.summary_id) || (d.mrn && p.mrn && d.mrn === p.mrn));
+  const base = draft || {...emptySummary(), ...p, summary_id: uid(), status:"new"};
+  localStorage.setItem("currentSummary", JSON.stringify(base));
+  location.href = "builder.html";
+}
 async function renderDashboardDrafts(){
   renderDoctorName();
   const box = document.getElementById("draftList"); if(!box) return;
   const drafts = await loadSummariesFromSheets();
   if(!drafts.length){ box.innerHTML = "<p class='muted'>No saved drafts yet.</p>"; return; }
-  box.innerHTML = drafts.map((d,i)=>`<div class="draft-item"><b>${d.patient_name || "Untitled Patient"}</b><br><span class="muted">${d.mrn || "No MRN"} • ${d.updated_at || ""}</span><br><button onclick="openDraft(${i})">Open</button></div>`).join("");
+  box.innerHTML = drafts.map((d,i)=>`<div class="draft-item" data-search="${escapeAttr([d.patient_name,d.mrn,d.bed,d.age].join(' '))}"><b>${escapeHtml(d.patient_name || "Untitled Patient")}</b><br><span class="muted">${escapeHtml(d.mrn || "No MRN")} • ${escapeHtml(d.updated_at || "")}</span><br><button onclick="openDraft(${i})">Open</button></div>`).join("");
+  searchPatientCards();
 }
 function openDraft(i){
   const drafts = JSON.parse(localStorage.getItem("savedDrafts") || "[]");
@@ -307,12 +401,20 @@ function saveCurrent(){ const s=collectSummary(); localStorage.setItem("currentS
 async function saveDraft(){
   const s = saveCurrent();
   s.doctor_name = DOCTOR_PROFILE.name;
+  if(!s.summary_id) s.summary_id = uid();
   const drafts = JSON.parse(localStorage.getItem("savedDrafts") || "[]");
-  const index = drafts.findIndex(d=>d.summary_id === s.summary_id);
+  const index = drafts.findIndex(d=>d.summary_id === s.summary_id || (d.mrn && s.mrn && d.mrn === s.mrn));
   if(index >= 0) drafts[index] = s; else drafts.unshift(s);
   localStorage.setItem("savedDrafts", JSON.stringify(drafts));
-  await saveSummaryToSheets(s);
-  alert("Draft saved.");
+  localStorage.setItem("savedPatients", JSON.stringify(summariesToPatients(drafts)));
+  const out = await saveSummaryToSheets(s);
+  if(out.success){
+    if(out.summary_id) s.summary_id = out.summary_id;
+    localStorage.setItem("currentSummary", JSON.stringify(s));
+    alert("Draft saved to Google Sheets. The patient will now appear on the dashboard.");
+  }else{
+    alert("Saved locally only. Google Sheets did not save: " + (out.error || "Unknown error") + "\n\nCheck Netlify environment variables and Sheet sharing.");
+  }
   loadBuilder();
 }
 function validateSummary(){
@@ -329,7 +431,15 @@ function generateDraftText(){
   const s = saveCurrent();
   document.getElementById("hospital_course").value = s.hospital_course || `Patient was admitted due to ${s.admission_reason || "the presenting complaint"}. Diagnosis and treatment were completed during admission. Patient is planned for discharge in stable condition.`;
 }
-async function generateReports(){ const s = saveCurrent(); s.doctor_name = DOCTOR_PROFILE.name; await saveSummaryToSheets(s); location.href="reports.html"; }
+async function generateReports(){
+  const s = saveCurrent();
+  s.doctor_name = DOCTOR_PROFILE.name;
+  const out = await saveSummaryToSheets(s);
+  if(!out.success){
+    console.warn("Report generated but Google Sheets save failed:", out.error);
+  }
+  location.href="reports.html";
+}
 
 function renderHomeMedications(items){
   const box=document.getElementById("homeMedications"); if(!box) return;

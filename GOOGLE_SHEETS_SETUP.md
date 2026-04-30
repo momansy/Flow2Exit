@@ -32,3 +32,11 @@ Then share the Google Sheet with the service account email as Editor.
 ## Current storage behavior
 - When deployed on Netlify with the env vars: data is saved to Google Sheets.
 - When opened locally without Google setup: it falls back to browser localStorage so the UI still works.
+
+## Patient persistence update
+This version writes each saved draft into two places:
+
+- `Summaries` tab: stores the complete discharge-summary JSON.
+- `Patients` tab: stores one patient row so the patient appears on the dashboard as a separate patient card.
+
+If the dashboard still shows local drafts only, open the browser console. The most common reason is missing Netlify environment variables or the Google Sheet not being shared with the service account as Editor.

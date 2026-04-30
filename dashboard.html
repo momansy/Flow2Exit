@@ -6,7 +6,7 @@
   <title>Flow2Exit Dashboard</title>
   <link rel="stylesheet" href="style.css" />
 </head>
-<body onload="requireLogin(); renderDoctorName(); renderDashboardDrafts();">
+<body onload="requireLogin(); initDashboard();">
   <nav class="topbar">
     <div class="brand-row"><div class="logo">F2</div><h2>Flow2Exit</h2></div>
     <input class="search" id="patientSearch" placeholder="Search patient by name, MRN, or bed" oninput="searchPatientCards()" />
@@ -17,11 +17,10 @@
   <main class="page">
     <h1>Cardiology Discharge Dashboard</h1>
     <section class="grid three">
-      <div class="card patient-card" data-search="Robert Alvarez MRN-549219 C-12">
-        <h2>Patient: Robert Alvarez</h2>
-        <p class="muted">MRN: MRN-549219 | Bed: C-12 | Age: 58</p>
-        <p>Recent PCI patient. Draft discharge summary ready to complete.</p>
-        <button class="primary" onclick="openExistingPatient()">Open Builder</button>
+      <div class="card">
+        <h2>Patients</h2>
+        <p class="muted">Saved patients appear here after saving a draft.</p>
+        <div id="patientList" class="patient-list"></div>
       </div>
       <div class="card">
         <h2>Drafts</h2>
